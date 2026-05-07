@@ -50,7 +50,8 @@
     *   FK: 'id' → post(id)
 
 ### [9] 알림(notification)
-*   notification(**id**, is_read, comment_content, commented_post_id, commented_user_id, created_at)
+*   notification(**id**, is_read, comment_content, commented_post_id, commented_user_id, commented_id, created_at)
     *   PK: (id)
     *   FK: 'commented_post_id' → comments(post_id)
     *       'commented_user_id' → comments(user_id)
+            'commented_id' → comments(id)
