@@ -16,7 +16,7 @@
     *   PK: `id` (int)
     *   FK: `user_id` → users(id)
     *       `post_id` → post(id)
-    *   Unique: 'user_id', 'post_id'
+    *   Unique: ('user_id', 'post_id')
 
 ### [4] 댓글 (comments)
 *   comments (**id**, user_id, post_id, parent_comment, content, is_public, created_at, is_updated)
