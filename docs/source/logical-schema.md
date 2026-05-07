@@ -3,11 +3,11 @@
 ### [1] 사용자 (Users)
 *   users (**id**, login_id, password, name, email_address, created_at, deleted_at, status, role)
     *   PK: `id` (int)
-    *   Unique: `login_id`
+    *   Unique: `login_id`,
     *   Note: `status` (ACTIVE, DELETED)
 
 ### [2] 게시물 (post)
-*   post (**id**, user_id, title, content, created_at, is_updated, view_count, is_reported)
+*   post (**id**, user_id, title, content, created_at, is_updated, view_count, is_reported, main_category, sub_category)
     *   PK: `id` (int)
     *   FK: `user_id` → users(id)
 
@@ -16,13 +16,14 @@
     *   PK: `id` (int)
     *   FK: `user_id` → users(id)
     *       `post_id` → post(id)
+    *   Unique: ('user_id', 'post_id')
 
 ### [4] 댓글 (comments)
 *   comments (**id**, user_id, post_id, parent_comment, content, is_public, created_at, is_updated)
     *   PK: `id` (int)
     *   FK: `user_id` → users(id)
     *       `post_id` → post(id)
-    *       `comment_id' → comments(id) //대댓글을 위한 자기참조
+    *       `parent_comment` → comments(id) //대댓글을 위한 자기참조
 
 ### [5] 스터디 그룹 (Groups)
 *   groups (**id**, group_link, name, creator_id, created_at)
@@ -43,7 +44,15 @@
     *   FK: `user_id` → users(id)
     *       `group_id` → groups(id) (NULL이면 개인 일정)
 
-### [8] 첨부파일(file) //post 릴레이션의 file_url, category가 다중값 속성으로 생각되어 릴레이션 스키마에서 릴레이션으로 만들었습니다..
-*   file (**id**, category, file_url)
+### [8] 첨부파일(file) 
+*   file (**id**, file_url)
     *   PK: (id, file_url)
     *   FK: 'id' → post(id)
+
+### [9] 알림(notification)
+*   notification(**id**, is_read, comment_content, commented_post_id, commented_user_id, commented_id, created_at)
+    *   PK: (id)
+    *   FK: `commented_post_id` → post(id)
+    *       `commented_user_id` → users(id)
+    *       `commented_id` → comments(id)
+    *   Note: `comment_content`는 알림에 표시할 댓글 내용을 보관한다.

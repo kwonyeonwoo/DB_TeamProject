@@ -28,6 +28,7 @@ The authoritative source documents are located in:
 - `docs/source/erd.md`
 - `docs/source/logical-schema.md`
 - `docs/source/physical-schema.md`
+- `docs/source/dbml.md`
 
 When documents conflict, do not guess.
 Report the conflict clearly and stop before implementation.

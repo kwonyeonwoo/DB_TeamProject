@@ -4,9 +4,9 @@ Table users {
   login_id varchar [unique, not null, note:'사용자 아이디']
   password varchar [not null, note:'비밀번호']
   name varchar [not null,note:'닉네임']
-  email_adress varchar [note:'이메일']
+  email_address varchar [note:'이메일']
   created_at timestamp [default: `now()`]
-  deleted_at datetime [note : '회원탈퇴 일자']
+  deleted_at timestamp [note : '회원탈퇴 일자']
   status boolean [note : '회원탈퇴여부']
   role varchar [note : '관리자 역할 구분']
 }
@@ -15,13 +15,13 @@ Table users {
 Table post {
   id int [pk, increment, note:'게시글 구분값']
   user_id int [ref: > users.id, note:'업로드한 사람']
-  category varchar [note:'자료분류']
   title varchar [not null, note:'게시글 제목']
   content text [note:'게시글 본문']
-  file_url varchar [note:'첨부파일']
   created_at timestamp [default: `now()`]
   is_updated boolean [default: false ,note : '수정여부확인']
-  view_count int [note : '조회수']
+  view_count int [note : '조회수']  
+  main_category varchar [not null, note:'대주제']
+  sub_category varchar [not null, note:'소주제']
   is_reported bool [note : '신고여부']
 }
 
@@ -81,4 +81,24 @@ Table schedules {
   // 일정이 하루라면 시작일과 종료일이 동일하다.
   description varchar [note : '일정 설명/메모']
   type int [note : '일정의 유형(시험, 스터디 등)']
+}
+
+// [8] 업로드 파일(file)
+Table file{
+  id int [ref: > post.id]
+  file_url varchar [note : '첨부파일']
+  indexes {
+    (id, file_url) [pk]
+  }
+}
+
+// [9] 알림(notification)
+Table notification{
+  id int [pk, not null, note:'알림 구분']
+  is_read boolean [default: 'true', note:'수신자의 알림 확인여부']
+  comment_content text [ref: > comments.content, note:'작성된 댓글의 내용']
+  commented_post_id int [ref: > comments.post_id, note:'댓글이 달린 게시물의 id']
+  commented_user_id int [ref: > comments.user_id, note:'수신자의 id']
+  commented_id int [ref: > comments.id, note:'대댓글의 id']
+  created_at timestamp [default: 'now()', note: '알림이 온 시간']
 }
