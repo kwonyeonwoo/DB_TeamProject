@@ -7,7 +7,7 @@
     *   Note: `status` (ACTIVE, DELETED)
 
 ### [2] 게시물 (post)
-*   post (**id**, user_id, title, content, created_at, is_updated, view_count, is_reported, category)
+*   post (**id**, user_id, title, content, created_at, is_updated, view_count, is_reported, main_category, sub_category)
     *   PK: `id` (int)
     *   FK: `user_id` → users(id)
 
