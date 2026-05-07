@@ -1,13 +1,13 @@
 ## 1. 릴레이션 스키마 리스트
 
 ### [1] 사용자 (Users)
-*   users (**id**, login_id, password, name, identity_info, created_at, deleted_at, status, role)
+*   users (**id**, login_id, password, name, email_address, created_at, deleted_at, status, role)
     *   PK: `id` (int)
     *   Unique: `login_id`
     *   Note: `status` (ACTIVE, DELETED)
 
 ### [2] 게시물 (post)
-*   post (**id**, user_id, category, title, content, file_url, created_at, is_updated, view_count, is_reported)
+*   post (**id**, user_id, title, content, created_at, is_updated, view_count, is_reported)
     *   PK: `id` (int)
     *   FK: `user_id` → users(id)
 
@@ -18,7 +18,7 @@
     *       `post_id` → post(id)
 
 ### [4] 댓글 (comments)
-*   comments (**id**, user_id, post_id, comment_id, content, is_public, created_at, is_updated)
+*   comments (**id**, user_id, post_id, parent_comment, content, is_public, created_at, is_updated)
     *   PK: `id` (int)
     *   FK: `user_id` → users(id)
     *       `post_id` → post(id)
@@ -30,8 +30,8 @@
     *   Unique: `group_link`
     *   FK: `creator_id` → users(id)
 
-### [6] 그룹 멤버 (Members)
-*   members (**group_id**, **user_id**, role)
+### [6] 그룹 멤버 (Group_Members)
+*   group_members (**group_id**, **user_id**, role)
     *   PK: (`group_id`, `user_id`)
     *   FK: `group_id` → groups(id)
     *       `user_id` → users(id)
@@ -43,7 +43,7 @@
     *   FK: `user_id` → users(id)
     *       `group_id` → groups(id) (NULL이면 개인 일정)
 
-### [8] 첨부파일(file)
-*   file (**id**, file_url)
+### [8] 첨부파일(file) //post 릴레이션의 file_url, category가 다중값 속성으로 생각되어 릴레이션 스키마에서 릴레이션으로 만들었습니다..
+*   file (**id**, category, file_url)
     *   PK: (id, file_url)
     *   FK: 'id' → post(id)

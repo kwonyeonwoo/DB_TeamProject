@@ -78,6 +78,7 @@ For normalized specifications, output Markdown files under:
 - `docs/normalized/auth-policy.md`
 - `docs/normalized/acceptance-criteria.md`
 - `docs/normalized/implementation-plan.md`
+- `docs/normalized/naming-convention.md`
 
 ## Validation Checklist
 
