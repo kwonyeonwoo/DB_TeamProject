@@ -1,35 +1,65 @@
 # Document Validation Report
 
-검토일: 2026-05-07  
+검토일: 2026-05-09
 검토 범위: `docs/source` 전체 문서
+검토 기준: 최신 `requirements.md`, `screen-design.md`, `api-spec.md`
 
 ## 1. 문서 인벤토리
 
 | 문서 | 상태 | 검토 결과 |
 |---|---|---|
-| `docs/source/requirements.md` | 작성됨 | 주요 기능 요구사항은 있으나 일부 화면/API가 요구사항보다 넓고, 검증 규칙과 권한 정책 일부가 미정이다. |
-| `docs/source/user-flow.md` | 작성됨 | 주요 흐름은 정리되었으나 계정 찾기, 알림, 추천, 대댓글, 일정 수정/삭제 흐름이 부족하다. |
-| `docs/source/screen-design.md` | 작성됨 | PDF 기준 `SC-01`부터 `SC-13`까지 작성되었고, 미확정 기능은 Open Questions로 분리되어 있다. |
-| `docs/source/api-spec.md` | 작성됨 | 현재 문서 기준 API 초안이 작성되었고, 인증 방식/공통 에러/일부 정책은 `TBD` 또는 Open Questions로 남아 있다. |
-| `docs/source/erd.md` | 작성됨 | 논리/물리 스키마와 주요 DB 구조가 일치한다. |
-| `docs/source/logical-schema.md` | 작성됨 | ERD/물리/DBML과 주요 DB 구조가 일치한다. |
-| `docs/source/physical-schema.md` | 작성됨 | ERD/논리/DBML과 주요 DB 구조가 일치한다. |
-| `docs/source/dbml.md` | 작성됨 | ERD/논리/물리 스키마와 주요 DB 구조가 일치한다. |
+| `docs/source/requirements.md` | 작성됨 | 계정 찾기, 로그아웃, 회원 탈퇴, 검색/페이지네이션, 파일 업로드, 추천 취소, 대댓글 깊이, 그룹 생성자 역할, 그룹 일정 권한, 채팅 제외 정책이 확정되었다. |
+| `docs/source/user-flow.md` | 작성됨 | 최신 요구사항/API/화면 기준으로 계정 찾기, 알림, 추천, 대댓글, 일정 수정/삭제, 탈퇴 후 이동 흐름이 부족하거나 오래된 표현이 남아 있다. |
+| `docs/source/screen-design.md` | 작성됨 | 최신 요구사항과 API 명세 기준으로 갱신되었다. 일부 UI 방식 결정은 Open Questions로 남아 있다. |
+| `docs/source/api-spec.md` | 작성됨 | 최신 요구사항과 화면 설계 기준으로 갱신되었다. 공통 에러, 비밀번호 재설정 토큰, 일부 보안/UI 정책은 Open Questions로 남아 있다. |
+| `docs/source/erd.md` | 작성됨 | 기존 DB 문서끼리의 구조는 대체로 일치하지만, 최신 요구사항의 이메일 유니크, 삭제 대기/비활성화/위임 정책을 표현하지 못한다. |
+| `docs/source/logical-schema.md` | 작성됨 | 최신 요구사항의 일부 제약과 상태 전이가 반영되지 않았다. |
+| `docs/source/physical-schema.md` | 작성됨 | 최신 요구사항의 이메일 유니크, 비활성화, 삭제 대기, 그룹장 위임 기준을 지원하는 제약/컬럼이 부족하다. |
+| `docs/source/dbml.md` | 작성됨 | 물리/논리 스키마와 같은 한계를 가진다. |
 
 ## 2. 요약
 
 | 심각도 | 건수 | 내용 |
 |---|---:|---|
-| BLOCKER | 0 | 현재 문서 검증 기준 즉시 중단해야 하는 미작성 핵심 문서는 없다. |
-| MAJOR | 13 | 구현 전 요구사항, 유저 플로우, 화면, API 사이에 맞춰야 할 범위/정책 이슈가 남아 있다. |
-| MINOR | 2 | 명명과 표시 정책 수준의 보완 항목이 있다. |
-| QUESTION | 0 | 결정 필요 사항은 `03-missing-decisions.md`에 MAJOR/MINOR 결정 항목으로 통합 기록했다. |
+| BLOCKER | 3 | 최신 요구사항이 DB 스키마로 구현 불가능하거나 직접 충돌하는 항목이 있다. |
+| MAJOR | 6 | 유저 플로우 보완과 구현 전 API 세부 결정이 필요하다. |
+| MINOR | 3 | 명칭, 조회수, 문서 정리 수준의 보완 항목이 있다. |
+| QUESTION | 0 | 결정 필요 사항은 `03-missing-decisions.md`에 별도로 기록했다. |
 
 ## 3. BLOCKER
 
-현재 미해결 BLOCKER는 없다.
+### B-01
 
-이전의 `screen-design.md` 미작성 BLOCKER는 `SC-01`부터 `SC-13`까지 화면 설계가 작성되어 해소되었다.
+| 항목 | 내용 |
+|---|---|
+| Severity | BLOCKER |
+| Related document | `docs/source/requirements.md`, `docs/source/api-spec.md`, `docs/source/erd.md`, `docs/source/logical-schema.md`, `docs/source/physical-schema.md`, `docs/source/dbml.md` |
+| Problem | 요구사항과 API는 탈퇴 회원의 게시글, 댓글, 개인 캘린더, 개인 일정, 유일 그룹의 비활성화와 6개월 삭제 대기를 요구하지만 DB 스키마에는 `post`, `comments`, `schedules`, `groups`의 상태/삭제대기/삭제예정일 컬럼이 없다. |
+| Why it matters | 탈퇴 후 데이터 생명주기와 조회 제외 정책을 실제 저장소에서 구현하거나 테스트할 수 없다. |
+| Suggested fix | 탈퇴/비활성화/삭제대기 상태를 표현할 DB 컬럼과 상태값을 ERD, 논리/물리 스키마, DBML에 반영한다. |
+| Required user decision | 비활성화 상태값, 삭제 대기 시작/만료 일시 컬럼, 6개월 후 실제 삭제 처리 방식 |
+
+### B-02
+
+| 항목 | 내용 |
+|---|---|
+| Severity | BLOCKER |
+| Related document | `docs/source/requirements.md`, `docs/source/api-spec.md`, `docs/source/logical-schema.md`, `docs/source/physical-schema.md`, `docs/source/dbml.md` |
+| Problem | 요구사항과 API는 그룹장 탈퇴 시 가장 먼저 가입한 다른 그룹원에게 자동 위임한다고 정의하지만 `group_members`에는 가입 순서를 판단할 `created_at`/`joined_at` 컬럼이 없다. 또한 위임 시 `groups.creator_id`를 유지할지 변경할지도 확정되지 않았다. |
+| Why it matters | 그룹장 자동 위임을 결정적으로 수행할 기준이 없고, 그룹 생성자와 현재 리더의 의미가 충돌할 수 있다. |
+| Suggested fix | 그룹 가입 일시 컬럼, 리더 위임 기준, `groups.creator_id`와 `group_members.role`의 역할 분리를 스키마/API에 반영한다. |
+| Required user decision | 위임 기준 컬럼과 위임 후 `groups.creator_id` 갱신 여부 |
+
+### B-03
+
+| 항목 | 내용 |
+|---|---|
+| Severity | BLOCKER |
+| Related document | `docs/source/requirements.md`, `docs/source/api-spec.md`, `docs/source/erd.md`, `docs/source/logical-schema.md`, `docs/source/physical-schema.md`, `docs/source/dbml.md` |
+| Problem | 요구사항과 API는 회원 아이디와 이메일이 모두 중복될 수 없다고 하지만 DB 스키마는 `login_id`만 Unique로 정의하고 `email_address` 유니크 제약이 없다. |
+| Why it matters | 요구사항의 가입 검증과 데이터 무결성을 DB에서 보장할 수 없다. |
+| Suggested fix | `users.email_address` 유니크 제약을 ERD, 논리/물리 스키마, DBML에 추가한다. |
+| Required user decision | 없음. 요구사항/API 기준으로 DB 문서 동기화 필요 |
 
 ## 4. MAJOR
 
@@ -38,11 +68,11 @@
 | 항목 | 내용 |
 |---|---|
 | Severity | MAJOR |
-| Related document | `docs/source/requirements.md`, `docs/source/user-flow.md`, `docs/source/api-spec.md`, `docs/source/screen-design.md` |
-| Problem | 아이디 찾기와 비밀번호 찾기의 “본인확인 정보”가 정의되어 있지 않고, 유저 플로우에도 상세 흐름이 없다. |
-| Why it matters | 계정 찾기 기능의 입력값, 검증 기준, API 요청/응답, 실패 처리를 확정할 수 없다. |
-| Suggested fix | 본인확인에 사용할 정보와 절차를 요구사항, 유저 플로우, API 명세, 화면 설계에 동일하게 반영한다. |
-| Required user decision | 본인확인 정보로 이메일만 사용할지, 이름+이메일 등 복합 정보를 사용할지 결정 |
+| Related document | `docs/source/requirements.md`, `docs/source/user-flow.md`, `docs/source/screen-design.md`, `docs/source/api-spec.md` |
+| Problem | 요구사항, 화면 설계, API에는 이메일 기반 아이디/비밀번호 찾기가 정의되었지만 유저 플로우에는 계정 찾기 화면과 상세 흐름이 없다. |
+| Why it matters | 로그인 전 계정 복구 동작의 시작 상태, 사용자 액션, 시스템 응답, 종료 상태를 검증할 수 없다. |
+| Suggested fix | 로그인 페이지에서 아이디 찾기, 비밀번호 찾기, 비밀번호 재설정 화면 이동 흐름을 `user-flow.md`에 추가한다. |
+| Required user decision | 아이디 찾기 결과를 전체 노출할지 마스킹할지 결정 |
 
 ### M-02
 
@@ -50,21 +80,21 @@
 |---|---|
 | Severity | MAJOR |
 | Related document | `docs/source/requirements.md`, `docs/source/user-flow.md`, `docs/source/screen-design.md`, `docs/source/api-spec.md` |
-| Problem | 요구사항은 비밀번호 수정만 명시하지만, 유저 플로우와 화면 설계는 “회원 정보 수정”으로 더 넓게 표현한다. API는 비밀번호 수정만 제공한다. |
-| Why it matters | 수정 가능한 회원 정보 범위가 불명확하면 API 필드와 권한 검증이 흔들린다. |
-| Suggested fix | 회원 정보 수정 가능 범위를 하나로 확정하고 요구사항, 화면, API를 맞춘다. |
-| Required user decision | 비밀번호만 수정 가능한지, 이름/이메일/닉네임 등도 수정 가능한지 결정 |
+| Problem | 요구사항, 화면 설계, API는 이름/이메일/비밀번호 수정과 탈퇴 후 로그인 페이지 이동을 정의하지만 유저 플로우는 회원 정보 수정 범위가 좁고 탈퇴 후 메인 페이지 이동으로 남아 있다. |
+| Why it matters | 회원 정보 관리와 탈퇴 후 인증 상태가 유저 플로우와 충돌한다. |
+| Suggested fix | 유저 플로우를 회원 정보 수정 필드와 탈퇴 후 즉시 로그아웃 및 로그인 페이지 이동 기준으로 갱신한다. |
+| Required user decision | 비밀번호 변경 시 현재 비밀번호 입력 필요 여부 |
 
 ### M-03
 
 | 항목 | 내용 |
 |---|---|
 | Severity | MAJOR |
-| Related document | `docs/source/requirements.md`, `docs/source/user-flow.md`, `docs/source/screen-design.md`, `docs/source/api-spec.md`, `docs/source/logical-schema.md` |
-| Problem | 유저 플로우, 화면 설계, API에는 회원 탈퇴가 있으나 요구사항에는 회원 탈퇴 기능과 정책이 명시되어 있지 않다. |
-| Why it matters | `users.status`, `deleted_at`의 사용 조건과 탈퇴 후 로그인/조회 가능 여부를 구현할 근거가 부족하다. |
-| Suggested fix | 회원 탈퇴 요구사항과 탈퇴 후 상태 전이를 추가한다. |
-| Required user decision | 탈퇴를 soft delete로 처리할지, 탈퇴 후 자동 로그아웃할지 결정 |
+| Related document | `docs/source/requirements.md`, `docs/source/user-flow.md`, `docs/source/screen-design.md`, `docs/source/api-spec.md` |
+| Problem | 요구사항과 API는 알림 클릭 후 대상 위치 정상 도달 시 읽음 처리한다고 확정했지만 유저 플로우에는 알림 목록 진입과 클릭 이동 흐름이 없다. |
+| Why it matters | 알림 조회/읽음 API가 어느 화면에서 호출되는지 검증하기 어렵다. |
+| Suggested fix | 알림 목록 진입, 알림 클릭, 게시글/댓글 위치 이동, 읽음 처리 흐름을 유저 플로우에 추가한다. |
+| Required user decision | 알림 목록을 어느 화면에서 진입할지 결정 |
 
 ### M-04
 
@@ -72,10 +102,10 @@
 |---|---|
 | Severity | MAJOR |
 | Related document | `docs/source/requirements.md`, `docs/source/user-flow.md`, `docs/source/screen-design.md`, `docs/source/api-spec.md` |
-| Problem | 알림 조회/읽음 API와 DB는 있으나 유저 플로우와 화면 설계에는 별도 알림 화면, 진입 경로, 읽음 처리 흐름이 부족하다. |
-| Why it matters | 알림 API와 화면 연결, `notification.is_read` 변경 시점이 확정되지 않는다. |
-| Suggested fix | 알림 목록 진입, 알림 클릭 또는 수동 읽음 처리, 관련 게시글 이동 흐름을 유저 플로우와 화면 설계에 추가한다. |
-| Required user decision | 알림 클릭 시 읽음 처리 여부와 이동 대상 결정 |
+| Problem | 요구사항, 화면 설계, API에는 추천/추천 취소와 대댓글 1단계 제한이 반영되었지만 유저 플로우에는 추천 액션과 대댓글 흐름이 없다. |
+| Why it matters | 게시글 상세 화면의 핵심 상호작용을 흐름 기준으로 검증할 수 없다. |
+| Suggested fix | 게시글 상세 흐름에 추천 등록/취소, 대댓글 작성, 대댓글 수정/삭제, 대댓글 깊이 제한 흐름을 추가한다. |
+| Required user decision | 없음 |
 
 ### M-05
 
@@ -83,98 +113,21 @@
 |---|---|
 | Severity | MAJOR |
 | Related document | `docs/source/requirements.md`, `docs/source/user-flow.md`, `docs/source/screen-design.md`, `docs/source/api-spec.md` |
-| Problem | 게시글 추천 요구사항/API/화면 버튼은 있으나 유저 플로우에는 추천 액션이 없다. |
-| Why it matters | 추천 버튼 위치, 중복 추천 실패 처리, 추천 취소 가능 여부를 흐름 관점에서 검증하기 어렵다. |
-| Suggested fix | 게시글 상세 페이지 흐름에 추천 버튼과 성공/실패 처리를 추가한다. |
-| Required user decision | 추천 취소 기능을 허용할지, 중복 추천 시 메시지를 어떻게 처리할지 결정 |
+| Problem | 요구사항, 화면 설계, API에는 개인 일정 조회/수정/삭제와 그룹 일정 삭제가 있으나 유저 플로우에는 개인 일정 추가 중심 흐름과 그룹 일정 관리 흐름만 있다. |
+| Why it matters | 일정 수정/삭제 권한과 화면 전환을 플로우 기준으로 검증하기 어렵다. |
+| Suggested fix | 개인 일정 선택/수정/삭제, 그룹 일정 조회/등록/수정/삭제 흐름을 유저 플로우에 추가한다. |
+| Required user decision | 개인 일정 상세/수정 UI를 별도 페이지로 둘지 모달로 둘지 결정 |
 
 ### M-06
 
 | 항목 | 내용 |
 |---|---|
 | Severity | MAJOR |
-| Related document | `docs/source/requirements.md`, `docs/source/user-flow.md`, `docs/source/screen-design.md`, `docs/source/api-spec.md`, `docs/source/erd.md` |
-| Problem | 대댓글 작성/수정/삭제 요구사항, 화면, API, DB 구조는 있으나 유저 플로우에는 대댓글 흐름이 없다. |
-| Why it matters | `comments.parent_comment`를 사용하는 화면/API 동작과 대댓글 깊이 정책이 명확하지 않다. |
-| Suggested fix | 댓글 하위에 대댓글 작성, 수정, 삭제, 공개 여부 확인 흐름을 추가한다. |
-| Required user decision | 대댓글 깊이를 1단계로 제한할지, 대댓글의 공개/비밀 정책을 댓글과 동일하게 적용할지 결정 |
-
-### M-07
-
-| 항목 | 내용 |
-|---|---|
-| Severity | MAJOR |
-| Related document | `docs/source/requirements.md`, `docs/source/user-flow.md`, `docs/source/screen-design.md`, `docs/source/api-spec.md` |
-| Problem | 개인 일정 조회/수정/삭제 요구사항, 화면, API는 있으나 유저 플로우는 일정 추가만 명확히 표현한다. |
-| Why it matters | 개인 일정 API와 화면 동작 중 상세 조회, 수정, 삭제 범위가 흐름에서 누락된다. |
-| Suggested fix | 개인 캘린더에서 일정 선택, 상세 조회, 수정, 삭제 흐름을 추가한다. |
-| Required user decision | 일정 선택 시 상세 화면을 사용할지, 모달/인라인 편집을 사용할지 결정 |
-
-### M-08
-
-| 항목 | 내용 |
-|---|---|
-| Severity | MAJOR |
-| Related document | `docs/source/requirements.md`, `docs/source/user-flow.md`, `docs/source/screen-design.md`, `docs/source/api-spec.md` |
-| Problem | 그룹 일정 삭제 요구사항, 화면, API는 있으나 유저 플로우에는 그룹 일정 삭제 흐름이 명확하지 않다. |
-| Why it matters | 그룹 일정 삭제 권한과 화면/API 동작을 검증하기 어렵다. |
-| Suggested fix | 그룹 캘린더 또는 그룹 관리 페이지에 그룹 일정 삭제 흐름을 추가한다. |
-| Required user decision | 그룹원 누구나 삭제 가능한지, 작성자/리더만 삭제 가능한지 결정 |
-
-### M-09
-
-| 항목 | 내용 |
-|---|---|
-| Severity | MAJOR |
 | Related document | `docs/source/api-spec.md`, `docs/source/screen-design.md` |
-| Problem | API 초안은 작성되었으나 인증 방식, 공통 에러 응답 형식, 일부 성공 응답 정책이 `TBD`로 남아 있다. |
-| Why it matters | 백엔드 구현과 테스트에서 인증 처리와 에러 응답 형식이 일관되지 않을 수 있다. |
-| Suggested fix | 인증 방식과 공통 에러 응답 body를 확정하고 API 명세 및 화면 실패 메시지 정책에 반영한다. |
-| Required user decision | 세션/JWT 등 인증 방식, 공통 에러 응답 body 형식 결정 |
-
-### M-10
-
-| 항목 | 내용 |
-|---|---|
-| Severity | MAJOR |
-| Related document | `docs/source/screen-design.md`, `docs/source/requirements.md`, `docs/source/api-spec.md`, `docs/source/logical-schema.md` |
-| Problem | `SC-13. 그룹 채팅`은 PDF/화면 설계에 있으나 요구사항, API, DB 스키마에는 채팅 기능이 없다. |
-| Why it matters | 화면이 백엔드 기능을 암시하지만 구현 계약과 데이터 모델이 없어 구현 범위가 흔들린다. |
-| Suggested fix | 채팅을 범위에 포함한다면 요구사항/API/DB를 추가하고, 제외한다면 화면 설계에서 명시적으로 구현 제외 상태를 유지한다. |
-| Required user decision | 그룹 채팅 기능을 이번 구현 범위에 포함할지 여부 |
-
-### M-11
-
-| 항목 | 내용 |
-|---|---|
-| Severity | MAJOR |
-| Related document | `docs/source/screen-design.md`, `docs/source/requirements.md`, `docs/source/api-spec.md` |
-| Problem | `SC-04`는 검색어, 작성자 필터, 페이지네이션을 암시하지만 요구사항은 게시글 조회만 명시하고 API는 `main_category`, `sub_category`와 페이지네이션 Open Question만 둔다. |
-| Why it matters | 목록 조회 API의 query parameter와 검색 인덱스, 화면 검증을 확정할 수 없다. |
-| Suggested fix | 검색어/작성자 필터와 페이지네이션 방식을 요구사항과 API에 명시한다. |
-| Required user decision | 지원할 검색 조건과 페이지네이션 방식 결정 |
-
-### M-12
-
-| 항목 | 내용 |
-|---|---|
-| Severity | MAJOR |
-| Related document | `docs/source/requirements.md`, `docs/source/screen-design.md`, `docs/source/api-spec.md`, `docs/source/logical-schema.md` |
-| Problem | 그룹 생성자가 `group_members`에 자동 포함되는지와 `LEADER` 역할을 갖는지가 확정되지 않았다. |
-| Why it matters | 그룹 생성 직후 생성자의 그룹 상세/그룹 일정 접근 권한과 중복 가입 검증이 달라진다. |
-| Suggested fix | 그룹 생성 시 `groups.creator_id`와 `group_members` 생성 정책을 요구사항/API에 명시한다. |
-| Required user decision | 생성자를 그룹 멤버로 자동 등록할지, 역할을 `LEADER`로 둘지 결정 |
-
-### M-13
-
-| 항목 | 내용 |
-|---|---|
-| Severity | MAJOR |
-| Related document | `docs/source/user-flow.md`, `docs/source/api-spec.md`, `docs/source/requirements.md` |
-| Problem | 로그아웃은 유저 플로우와 API에 있으나 요구사항에는 명시적인 로그아웃 요구사항이 없다. |
-| Why it matters | 인증 세션/토큰 무효화 정책과 API 테스트의 요구사항 추적성이 부족하다. |
-| Suggested fix | 로그아웃 요구사항과 성공 후 이동/세션 무효화 정책을 요구사항과 API에 반영한다. |
-| Required user decision | 로그아웃 시 세션 또는 토큰을 어떻게 무효화할지 결정 |
+| Problem | API 공통 에러 응답 형식이 아직 확정되지 않았다. |
+| Why it matters | API 실패 응답과 화면 오류 메시지 처리가 일관되지 않을 수 있다. |
+| Suggested fix | 모든 API가 공유할 에러 body 형식과 필드명을 확정한다. |
+| Required user decision | 예: `code`, `message`, `details` 포함 여부와 필드명 |
 
 ## 5. MINOR
 
@@ -184,10 +137,10 @@
 |---|---|
 | Severity | MINOR |
 | Related document | `docs/source/requirements.md`, `docs/source/screen-design.md`, `docs/source/api-spec.md`, `docs/source/dbml.md` |
-| Problem | 회원 이름 필드가 요구사항에서는 이름, 화면/API에서는 이름 또는 닉네임, DBML note에서는 닉네임으로 표현된다. |
-| Why it matters | 필드명은 같지만 화면 라벨과 검증 메시지가 달라질 수 있다. |
-| Suggested fix | `users.name`의 의미를 이름, 닉네임, 표시명 중 하나로 통일한다. |
-| Required user decision | 사용자에게 표시할 회원명 필드의 명칭 결정 |
+| Problem | 회원 이름 필드가 요구사항/API/화면에서는 이름으로 정리되었지만 DBML note에는 닉네임으로 표현된다. |
+| Why it matters | 필드명은 같지만 문서 라벨이 달라질 수 있다. |
+| Suggested fix | `users.name`의 표시 의미를 이름으로 통일한다. |
+| Required user decision | 없음 |
 
 ### m-02
 
@@ -195,22 +148,47 @@
 |---|---|
 | Severity | MINOR |
 | Related document | `docs/source/requirements.md`, `docs/source/api-spec.md`, `docs/source/erd.md` |
-| Problem | `post.view_count`는 DB/API/화면에 있으나 조회 시 증가 조건은 명시되지 않았다. |
-| Why it matters | 조회수 증가가 상세 조회마다 발생하는지, 중복 조회를 제한하는지 구현 방식이 달라질 수 있다. |
+| Problem | `post.view_count`는 DB/API/화면에 있으나 조회수 증가 조건은 요구사항에 명시되지 않았다. |
+| Why it matters | 상세 조회마다 증가할지, 같은 사용자의 반복 조회를 제한할지 구현 방식이 달라질 수 있다. |
 | Suggested fix | 조회수 증가 정책을 요구사항 또는 API에 보완한다. |
 | Required user decision | 게시글 상세 조회 시 조회수를 언제 증가시킬지 결정 |
 
-## 6. DB 스키마 검토 결과
+### m-03
 
-`erd.md`, `logical-schema.md`, `physical-schema.md`, `dbml.md` 간의 이전 DB 구조 충돌은 현재 기준으로 해소되었다.
+| 항목 | 내용 |
+|---|---|
+| Severity | MINOR |
+| Related document | `docs/source/requirements.md` |
+| Problem | 그룹 캘린더 유지 정보 목록 끝에 빈 bullet `-`가 남아 있다. |
+| Why it matters | 요구사항 목록에 의도하지 않은 누락 항목이 있는지 오해될 수 있다. |
+| Suggested fix | 빈 bullet을 제거하거나 누락 항목이 있다면 내용을 채운다. |
+| Required user decision | 없음 |
 
-- `users.status`: `ACTIVE`, `DELETED` 상태값으로 통일
-- `file`: `id`, `file_url` 복합 PK와 `id → post.id` 참조로 통일
-- `notification`: `commented_post_id → post.id`, `commented_user_id → users.id`, `commented_id → comments.id`로 통일
-- `notification.comment_content`: FK가 아닌 알림 표시용 댓글 내용으로 통일
-- `likes`: `UNIQUE(user_id, post_id)`로 회원당 게시글 1회 추천 요구사항과 일치
-- `schedules`: `group_id = NULL`이면 개인 일정, 값이 있으면 그룹 일정으로 통일
+## 6. 해소되었거나 요구사항/API/화면에서 확정된 항목
 
-## 7. 다음 단계 판단
+- 본인확인 정보: 이메일로 확정 및 API/화면 반영
+- 비밀번호 찾기 성공 후 처리: 비밀번호 재설정 화면 이동으로 확정 및 API/화면 반영
+- 로그아웃 방식: 서버 세션 무효화로 확정 및 API 반영
+- 회원 탈퇴: `status = DELETED`, `deleted_at` 기록, 즉시 로그아웃, 로그인 페이지 이동으로 확정 및 API/화면 반영
+- 알림 읽음 처리: 알림 클릭 후 대상 위치 정상 도달 시 읽음 처리로 API/화면 반영
+- 파일 업로드: `multipart/form-data` 직접 업로드 방식으로 API/화면 반영
+- 게시글 작성/삭제 후 이동: 게시판 첫 번째 페이지로 화면/API 클라이언트 동작 반영
+- 게시글 목록: 페이지 번호 기반, 최신순, 단일 필터 사용으로 API/화면 반영
+- 추천: 등록 API와 취소 API로 반영
+- 대댓글 깊이: 대댓글에는 다시 대댓글을 작성할 수 없음으로 API/화면 반영
+- 그룹 생성자: 생성과 동시에 `group_members`에 `LEADER`로 등록으로 API/화면 반영
+- 그룹 채팅: 구현하지 않음으로 API/화면 반영
+- 그룹 일정 권한: 모든 그룹원이 조회/등록/수정/삭제 가능으로 API/화면 반영
 
-문서 작성 자체의 BLOCKER는 해소되었지만, MAJOR 이슈가 남아 있으므로 백엔드 구현으로 바로 넘어가면 안 된다. 먼저 `03-missing-decisions.md`의 결정 항목을 확정하거나, 미확정 항목을 명시적으로 구현 범위에서 제외한 뒤 normalized specification을 갱신해야 한다.
+## 7. DB 스키마 검토 결과
+
+`erd.md`, `logical-schema.md`, `physical-schema.md`, `dbml.md` 사이의 기존 구조 정합성은 대체로 유지된다. 다만 최신 요구사항과 API 기준으로는 다음 스키마 보완이 필요하다.
+
+- `users.email_address` 유니크 제약 추가 필요
+- `post`, `comments`, `schedules`, `groups`의 비활성화/삭제대기 상태 표현 필요
+- `group_members`의 가입 순서 판단 컬럼 필요
+- 그룹장 위임 후 현재 리더와 최초 생성자 의미 분리 필요
+
+## 8. 다음 단계 판단
+
+요구사항, 화면 설계, API 명세는 주요 정책 기준으로 정렬되었다. 백엔드 구현 전에는 DB 스키마 계약을 먼저 갱신해야 한다.
