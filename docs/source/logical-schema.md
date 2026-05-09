@@ -1,15 +1,16 @@
 ## 1. 릴레이션 스키마 리스트
 
 ### [1] 사용자 (Users)
-*   users (**id**, login_id, password, name, email_address, created_at, deleted_at, status, role)
+*   users (**id**, login_id, password, name, email_address, created_at, deleted_at, deletion_due_date, status, role)
     *   PK: `id` (int)
-    *   Unique: `login_id`,
-    *   Note: `status` (ACTIVE, DELETED)
+    *   Unique: `login_id`, `email_address`
+    *   Note: `status` (ACTIVE, INACTIVE, DELETED), `deletion_due_date` (탈퇴 후 6개월 뒤 삭제 예정일)
 
 ### [2] 게시물 (post)
-*   post (**id**, user_id, title, content, created_at, is_updated, view_count, is_reported, main_category, sub_category)
+*   post (**id**, user_id, title, content, created_at, updated_at, deleted_at, deletion_due_date, status, view_count, is_reported, main_category, sub_category)
     *   PK: `id` (int)
     *   FK: `user_id` → users(id)
+    *   Note: `status` (ACTIVE, DELETED)
 
 ### [3] 추천 (likes)
 *   likes (**id**, user_id, post_id, created_at)
@@ -19,30 +20,33 @@
     *   Unique: ('user_id', 'post_id')
 
 ### [4] 댓글 (comments)
-*   comments (**id**, user_id, post_id, parent_comment, content, is_public, created_at, is_updated)
+*   comments (**id**, user_id, post_id, parent_comment, content, is_anonymous, created_at, updated_at, deleted_at, deletion_due_date, status)
     *   PK: `id` (int)
     *   FK: `user_id` → users(id)
     *       `post_id` → post(id)
     *       `parent_comment` → comments(id) //대댓글을 위한 자기참조
+    *   Note: `status` (ACTIVE, DELETED)
 
 ### [5] 스터디 그룹 (Groups)
-*   groups (**id**, group_link, name, creator_id, created_at)
+*   groups (**id**, group_link, name, creator_id, created_at, deleted_at, deletion_due_date, status)
     *   PK: `id` (int)
     *   Unique: `group_link`
     *   FK: `creator_id` → users(id)
+    *   Note: `status` (ACTIVE, INACTIVE, DELETED)
 
 ### [6] 그룹 멤버 (Group_Members)
-*   group_members (**group_id**, **user_id**, role)
+*   group_members (**group_id**, **user_id**, role, joined_at)
     *   PK: (`group_id`, `user_id`)
     *   FK: `group_id` → groups(id)
     *       `user_id` → users(id)
-    *   Note: `role` (LEADER, MEMBER)
+    *   Note: `role` (LEADER, MEMBER), `joined_at` 기준으로 리더 위임 판단
 
 ### [7] 통합 일정 (Schedules)
-*   schedules (**id**, user_id, group_id, title, start_at, end_at, description, type)
+*   schedules (**id**, user_id, group_id, title, start_at, end_at, description, type, created_at, updated_at, deleted_at, deletion_due_date, status)
     *   PK: `id` (int)
     *   FK: `user_id` → users(id)
     *       `group_id` → groups(id) (NULL이면 개인 일정)
+    *   Note: `status` (ACTIVE, DELETED)
 
 ### [8] 첨부파일(file) 
 *   file (**id**, file_url)
