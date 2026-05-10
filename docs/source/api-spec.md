@@ -8,8 +8,9 @@
 - 논리 스키마: `docs/source/logical-schema.md`
 - ERD: `docs/source/erd.md`
 - 물리 스키마: `docs/source/physical-schema.md`
+- DBML: `docs/source/dbml.md`
 
-이 문서는 최신 요구사항 명세서를 우선 기준으로 한 API 계약 초안이다. 요구사항에서 결정된 정책은 API 계약에 반영하고, 요구사항만으로 세부 API 형태를 확정할 수 없는 항목은 `Open Questions`로 남긴다.
+이 문서는 최신 요구사항 명세서를 우선 기준으로 한 API 계약 문서다. 요구사항에서 결정된 정책은 API 계약에 반영하고, 요구사항만으로 세부 API 형태를 확정할 수 없는 항목은 `Open Questions`로 남긴다.
 
 ## 2. 공통 규칙
 
@@ -35,9 +36,21 @@ Authentication:
 Lifecycle:
 
 - 탈퇴 회원은 `users.status = DELETED`, `users.deleted_at = now()`로 처리한다.
-- 탈퇴 회원이 작성한 게시글, 댓글, 개인 캘린더, 개인 일정은 비활성화 및 삭제 대기 상태로 전환되어 일반 조회 API에 노출하지 않는다.
-- 탈퇴 회원이 유일한 그룹원인 그룹은 비활성화 및 삭제 대기 상태로 전환되어 일반 조회 API에 노출하지 않는다.
-- 탈퇴 데이터의 6개월 삭제 대기 상태를 저장하기 위한 DB 스키마 보완이 필요하다.
+- 탈퇴 처리 시 `login_id`, `password`, `name`, `email_address` 등 개인정보성 컬럼은 삭제하거나 식별할 수 없는 값으로 변경한다.
+- 탈퇴 회원이 작성한 게시글, 댓글, 대댓글은 삭제하지 않고 유지한다.
+- 탈퇴 회원 작성물은 일반 조회, 검색, 페이지네이션 대상에 포함한다.
+- 탈퇴 회원 작성물의 작성자명은 `탈퇴한 유저`로 표시하며, 익명 표시보다 우선한다.
+- 탈퇴 회원의 개인 일정은 `schedules.status = DELETED`, `schedules.deleted_at = now()`로 비활성화 및 삭제 대기 상태를 표현하며 일반 조회에 노출하지 않는다.
+- 탈퇴 회원은 가입되어 있던 모든 그룹에서 탈퇴 처리한다.
+- 탈퇴 회원이 그룹장인 그룹은 탈퇴 전에 가장 먼저 가입한 다른 그룹원에게 `LEADER` 권한을 자동 위임한다.
+- 탈퇴 회원이 유일한 그룹원인 그룹은 `groups.status = INACTIVE`, `groups.deleted_at = now()`로 비활성화 및 삭제 대기 상태를 표현하며 일반 조회에 노출하지 않는다.
+- 삭제 예정일 컬럼은 사용하지 않는다.
+
+Display:
+
+- 익명 게시글, 댓글, 대댓글은 작성자 이름 대신 `익명_숫자`로 표시한다.
+- `익명_숫자`는 하나의 게시글 상세 화면 기준으로 부여하며, 동일 게시글 내 동일 작성자는 항상 같은 번호로 표시한다.
+- 작성자 표시명은 API 응답에서 `author_display_name`으로 내려줄 수 있다.
 
 ## 3. 공통 상태 코드
 
@@ -59,12 +72,12 @@ Lifecycle:
 | 필드 | 타입 | 설명 |
 |---|---|---|
 | `id` | integer | 회원 식별자 |
-| `login_id` | string | 로그인 아이디 |
-| `name` | string | 이름 |
-| `email_address` | string | 이메일 |
+| `login_id` | string, nullable | 로그인 아이디. 탈퇴 후 NULL 가능 |
+| `name` | string, nullable | 이름. 탈퇴 후 NULL 또는 식별 불가 값 가능 |
+| `email_address` | string, nullable | 이메일. 탈퇴 후 NULL 가능 |
 | `created_at` | string | 가입 일시 |
 | `deleted_at` | string, nullable | 회원 탈퇴 일시 |
-| `status` | string | `ACTIVE`, `DELETED` |
+| `status` | string | `ACTIVE`, `INACTIVE`, `DELETED` |
 | `role` | string, nullable | 사용자 역할 |
 
 `password`는 응답에 포함하지 않는다.
@@ -75,14 +88,18 @@ Lifecycle:
 |---|---|---|
 | `id` | integer | 게시글 식별자 |
 | `user_id` | integer | 작성자 id |
+| `author_display_name` | string | 화면 표시용 작성자명 |
 | `title` | string | 제목 |
 | `content` | string, nullable | 본문 |
 | `created_at` | string | 작성 일시 |
-| `is_updated` | boolean | 수정 여부 |
+| `updated_at` | string, nullable | 수정 일시. NULL이 아니면 수정된 게시글 |
+| `deleted_at` | string, nullable | 삭제 일시 |
+| `status` | string | `ACTIVE`, `DELETED` |
 | `view_count` | integer | 조회수 |
 | `is_reported` | boolean | 신고 여부 |
 | `main_category` | string | 대주제, 학과 |
 | `sub_category` | string | 소주제, 과목 |
+| `is_anonymous` | boolean | 익명 작성 여부 |
 | `files` | File[] | 첨부파일 목록 |
 | `liked_by_me` | boolean | 현재 로그인 회원의 추천 여부 |
 | `like_count` | integer | 추천 수 |
@@ -92,7 +109,7 @@ Lifecycle:
 | 필드 | 타입 | 설명 |
 |---|---|---|
 | `id` | integer | 게시글 id |
-| `file_url` | string | 첨부파일 URL |
+| `file_url` | string | 업로드된 첨부파일의 저장 위치 |
 
 ### 4-4. Comment
 
@@ -100,14 +117,17 @@ Lifecycle:
 |---|---|---|
 | `id` | integer | 댓글 식별자 |
 | `user_id` | integer | 작성자 id |
+| `author_display_name` | string | 화면 표시용 작성자명 |
 | `post_id` | integer | 게시글 id |
 | `parent_comment` | integer, nullable | 부모 댓글 id. NULL이면 일반 댓글 |
 | `content` | string | 댓글 또는 대댓글 내용 |
-| `is_public` | boolean | 공개 여부 |
+| `is_anonymous` | boolean | 익명 작성 여부 |
 | `created_at` | string | 작성 일시 |
-| `is_updated` | boolean | 수정 여부 |
+| `updated_at` | string, nullable | 수정 일시. NULL이 아니면 수정된 댓글 |
+| `deleted_at` | string, nullable | 삭제 일시 |
+| `status` | string | `ACTIVE`, `DELETED` |
 
-대댓글에는 다시 대댓글을 작성할 수 없다. 따라서 대댓글 작성 API의 부모 댓글은 `parent_comment = null`인 일반 댓글이어야 한다.
+대댓글에는 다시 대댓글을 작성할 수 없다. 대댓글 작성 API의 부모 댓글은 `parent_comment = null`인 일반 댓글이어야 한다.
 
 ### 4-5. Like
 
@@ -127,7 +147,7 @@ Lifecycle:
 | `comment_content` | string | 알림에 표시할 댓글 내용 |
 | `commented_post_id` | integer | 댓글이 달린 게시글 id |
 | `commented_user_id` | integer | 알림 수신자 id |
-| `commented_id` | integer | 알림 대상 댓글 또는 대댓글 id |
+| `commented_id` | integer, nullable | 댓글 알림이면 NULL, 대댓글 알림이면 부모 댓글 id |
 | `created_at` | string | 알림 생성 일시 |
 
 ### 4-7. Group
@@ -135,10 +155,12 @@ Lifecycle:
 | 필드 | 타입 | 설명 |
 |---|---|---|
 | `id` | integer | 그룹 식별자 |
-| `group_link` | string | 그룹 초대 링크 |
+| `group_link` | string | 그룹 링크 |
 | `name` | string | 그룹명 |
 | `creator_id` | integer | 생성자 id |
 | `created_at` | string | 생성 일시 |
+| `deleted_at` | string, nullable | 그룹 삭제 또는 비활성화 일시 |
+| `status` | string | `ACTIVE`, `INACTIVE`, `DELETED` |
 
 그룹 채팅은 요구사항상 구현하지 않으므로 채팅 리소스와 API를 제공하지 않는다.
 
@@ -149,8 +171,7 @@ Lifecycle:
 | `group_id` | integer | 그룹 id |
 | `user_id` | integer | 회원 id |
 | `role` | string | `LEADER`, `MEMBER` |
-
-그룹장 자동 위임은 "가장 먼저 가입한 그룹원" 기준이다. 이 기준을 구현하려면 `group_members`에 가입 순서를 판단할 스키마 보완이 필요하다.
+| `joined_at` | string | 그룹 가입 일시. 그룹장 자동 위임 기준 |
 
 ### 4-9. Schedule
 
@@ -163,7 +184,11 @@ Lifecycle:
 | `start_at` | string | 시작 일시 |
 | `end_at` | string | 종료 일시 |
 | `description` | string, nullable | 메모 또는 설명 |
-| `type` | integer | 일정 유형 |
+| `type` | integer | 일정 종류 |
+| `created_at` | string | 생성 일시 |
+| `updated_at` | string, nullable | 수정 일시 |
+| `deleted_at` | string, nullable | 삭제 일시 |
+| `status` | string | `ACTIVE`, `DELETED` |
 
 ## 5. 인증 및 회원 API
 
@@ -174,7 +199,7 @@ Lifecycle:
 | Method | `POST` |
 | Path | `/api/auth/signup` |
 | 인증 | 불필요 |
-| Trace | 요구사항 1-1, UF-02, `users` |
+| Trace | 요구사항 1-1, UF-02, SC-02, `users` |
 
 Request body:
 
@@ -187,18 +212,13 @@ Request body:
 }
 ```
 
-Response `201`:
+Response `201`: User
 
-```json
-{
-  "id": 1,
-  "login_id": "student01",
-  "name": "홍길동",
-  "email_address": "student@example.com",
-  "created_at": "2026-05-09T10:00:00Z",
-  "status": "ACTIVE"
-}
-```
+Rules:
+
+- `login_id`, `password`, `name`, `email_address`는 필수다.
+- `login_id`, `email_address`는 중복될 수 없다.
+- 탈퇴 회원의 NULL 처리된 `login_id`, `email_address`는 중복 판단 대상에서 제외한다.
 
 Errors:
 
@@ -215,7 +235,7 @@ Errors:
 | Method | `POST` |
 | Path | `/api/auth/login` |
 | 인증 | 불필요 |
-| Trace | 요구사항 1-2, UF-01 |
+| Trace | 요구사항 1-2, UF-03, SC-01 |
 
 Request body:
 
@@ -260,114 +280,34 @@ Errors:
 | Method | `POST` |
 | Path | `/api/auth/logout` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 1-2, UF-03 |
+| Trace | 요구사항 1-2, UF-03, SC-06 |
+
+Response `204`: 없음
 
 Processing:
 
 - 서버에 저장된 현재 사용자 세션을 무효화한다.
+- 세션 무효화 후 인증 필요 API는 사용할 수 없다.
 
-Response:
-
-| Status | Body |
-|---:|---|
-| 204 | 없음 |
-
-### A-04. 아이디 찾기
-
-| 항목 | 내용 |
-|---|---|
-| Method | `POST` |
-| Path | `/api/auth/find-login-id` |
-| 인증 | 불필요 |
-| Trace | 요구사항 1-2, SC-03 |
-
-Request body:
-
-```json
-{
-  "email_address": "student@example.com"
-}
-```
-
-Response `200`:
-
-```json
-{
-  "login_id": "student01"
-}
-```
-
-Errors:
-
-| Status | 조건 |
-|---:|---|
-| 400 | 이메일 누락 또는 형식 오류 |
-| 404 | 해당 이메일의 회원 없음 |
-
-Open Questions:
-
-- 아이디 전체를 노출할지 일부 마스킹할지 결정 필요
-
-### A-05. 비밀번호 찾기
-
-| 항목 | 내용 |
-|---|---|
-| Method | `POST` |
-| Path | `/api/auth/find-password` |
-| 인증 | 불필요 |
-| Trace | 요구사항 1-2, SC-03 |
-
-Request body:
-
-```json
-{
-  "login_id": "student01",
-  "email_address": "student@example.com"
-}
-```
-
-Response `200`:
-
-```json
-{
-  "next_action": "PASSWORD_RESET_SCREEN"
-}
-```
-
-Processing:
-
-- `login_id`와 `email_address`가 일치하면 비밀번호 재설정 화면으로 이동할 수 있음을 응답한다.
-
-Errors:
-
-| Status | 조건 |
-|---:|---|
-| 400 | 필수 입력값 누락 또는 형식 오류 |
-| 404 | 일치하는 회원 없음 |
-
-Open Questions:
-
-- 비밀번호 재설정 화면에서 사용할 검증 토큰 또는 임시 세션 방식 결정 필요
-
-### A-06. 내 정보 조회
+### A-04. 내 정보 조회
 
 | 항목 | 내용 |
 |---|---|
 | Method | `GET` |
 | Path | `/api/users/me` |
 | 인증 | 인증 필요 |
-| Trace | UF-04, `users` |
+| Trace | UF-05, SC-11, `users` |
 
 Response `200`: User
 
-### A-07. 내 정보 수정
+### A-05. 내 정보 수정
 
 | 항목 | 내용 |
 |---|---|
 | Method | `PATCH` |
 | Path | `/api/users/me` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 1-3, SC-07 |
+| Trace | 요구사항 1-3, UF-05, SC-11 |
 
 Request body:
 
@@ -400,26 +340,27 @@ Open Questions:
 
 - 비밀번호 변경 시 현재 비밀번호 입력을 필수로 받을지 결정 필요
 
-### A-08. 회원 탈퇴
+### A-06. 회원 탈퇴
 
 | 항목 | 내용 |
 |---|---|
 | Method | `DELETE` |
 | Path | `/api/users/me` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 1-4, UF-04, `users.status`, `users.deleted_at` |
+| Trace | 요구사항 1-4, UF-06, SC-11, `users.status`, `users.deleted_at` |
 
 Processing:
 
 - 현재 회원의 `deleted_at`을 현재 시각으로 기록한다.
 - 현재 회원의 `status`를 `DELETED`로 변경한다.
+- 현재 회원의 개인정보성 컬럼은 삭제하거나 식별할 수 없는 값으로 변경한다.
 - 현재 회원의 서버 세션을 무효화한다.
-- 탈퇴 회원이 작성한 게시글, 댓글, 개인 캘린더, 개인 일정은 비활성화 및 삭제 대기 상태로 전환한다.
+- 탈퇴 회원이 작성한 게시글, 댓글, 대댓글은 삭제하지 않는다.
+- 탈퇴 회원의 개인 일정은 `schedules.status = DELETED`, `schedules.deleted_at = now()`로 전환하고 일반 조회에 노출하지 않는다.
 - 탈퇴 회원은 가입되어 있던 모든 그룹에서 탈퇴 처리한다.
 - 탈퇴 회원이 그룹장인 그룹은 탈퇴 전에 다른 그룹원에게 `LEADER` 권한을 자동 위임한다.
 - 위임 대상은 탈퇴 회원을 제외하고 해당 그룹에 가장 먼저 가입한 그룹원이다.
-- 탈퇴 회원이 유일한 그룹원인 그룹은 비활성화 및 삭제 대기 상태로 전환한다.
-- 탈퇴 회원 데이터와 비활성화된 관련 데이터는 탈퇴 시점부터 6개월 동안 삭제 대기 상태로 보관한 후 삭제 대상이 된다.
+- 탈퇴 회원이 유일한 그룹원인 그룹은 `groups.status = INACTIVE`, `groups.deleted_at = now()`로 전환하고 일반 조회에 노출하지 않는다.
 
 Response `204`: 없음
 
@@ -428,11 +369,6 @@ Errors:
 | Status | 조건 |
 |---:|---|
 | 401 | 인증되지 않음 |
-
-Schema notes:
-
-- 관련 데이터의 비활성화/삭제 대기 상태를 표현할 DB 스키마 보완이 필요하다.
-- 그룹장 위임을 위해 그룹 가입 순서를 판단할 DB 스키마 보완이 필요하다.
 
 ## 6. 게시글 API
 
@@ -443,7 +379,7 @@ Schema notes:
 | Method | `GET` |
 | Path | `/api/posts` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 3-3, UF-05, SC-04, `post` |
+| Trace | 요구사항 3-3, UF-08, SC-08, `post` |
 
 Query parameters:
 
@@ -461,7 +397,9 @@ Rules:
 - 기본 정렬은 작성일 기준 최신순이다.
 - `keyword`, `author`, 주제 필터(`main_category`, `sub_category`)는 한 번에 하나만 사용할 수 있다.
 - 주제 필터에서 `main_category`와 `sub_category`는 하나의 주제 필터 묶음으로 본다.
-- 비활성화 또는 삭제 대기 상태의 게시글은 목록에 노출하지 않는다.
+- `post.status = ACTIVE`인 게시글만 일반 목록에 노출한다.
+- 탈퇴 회원의 게시글은 유지되며 목록, 검색, 페이지네이션 대상에 포함한다.
+- 작성자 필터 결과에서는 탈퇴한 유저의 게시글과 익명 게시글을 제외한다.
 
 Response `200`:
 
@@ -471,13 +409,16 @@ Response `200`:
     {
       "id": 1,
       "user_id": 1,
+      "author_display_name": "익명_1",
       "title": "게시글 제목",
       "created_at": "2026-05-09T10:00:00Z",
-      "is_updated": false,
+      "updated_at": null,
+      "status": "ACTIVE",
       "view_count": 0,
       "is_reported": false,
       "main_category": "컴퓨터공학과",
       "sub_category": "데이터베이스",
+      "is_anonymous": true,
       "like_count": 3,
       "liked_by_me": false
     }
@@ -503,7 +444,11 @@ Errors:
 | Method | `GET` |
 | Path | `/api/posts/{post_id}` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 3-3, UF-05, SC-05, `post`, `file`, `comments` |
+| Trace | 요구사항 3-3, UF-10, SC-09, `post`, `file`, `comments` |
+
+Processing:
+
+- 게시글 상세 화면 접근 시 조회수를 증가시킨다.
 
 Response `200`: Post
 
@@ -511,11 +456,7 @@ Errors:
 
 | Status | 조건 |
 |---:|---|
-| 404 | 게시글 없음 또는 비활성화/삭제 대기 게시글 |
-
-Open Questions:
-
-- 게시글 상세 조회 시 조회수 증가 조건 결정 필요
+| 404 | 게시글 없음 또는 삭제된 게시글 |
 
 ### P-03. 게시글 작성
 
@@ -525,7 +466,7 @@ Open Questions:
 | Path | `/api/posts` |
 | 인증 | 인증 필요 |
 | Content-Type | `multipart/form-data` |
-| Trace | 요구사항 3-1, UF-06, SC-06, `post`, `file` |
+| Trace | 요구사항 3-1, UF-09, SC-10, `post`, `file` |
 
 Multipart fields:
 
@@ -535,6 +476,7 @@ Multipart fields:
 | `content` | string | no | 게시글 본문 |
 | `main_category` | string | yes | 대주제 |
 | `sub_category` | string | yes | 소주제 |
+| `is_anonymous` | boolean | yes | 익명 작성 여부 |
 | `files` | file[] | no | 직접 업로드할 첨부파일 |
 
 Response `201`: Post
@@ -558,7 +500,7 @@ Errors:
 | Path | `/api/posts/{post_id}` |
 | 인증 | 인증 필요 |
 | Content-Type | `multipart/form-data` 또는 JSON |
-| Trace | 요구사항 3-2, UF-07, SC-06, `post.is_updated` |
+| Trace | 요구사항 3-2, UF-10, SC-10, `post.updated_at` |
 
 Request fields:
 
@@ -568,7 +510,12 @@ Request fields:
 | `content` | string | no | 수정 본문 |
 | `main_category` | string | no | 수정 대주제 |
 | `sub_category` | string | no | 수정 소주제 |
+| `is_anonymous` | boolean | no | 익명 작성 여부 |
 | `files` | file[] | no | 교체 또는 추가할 첨부파일 |
+
+Processing:
+
+- 수정 성공 시 `updated_at`을 현재 시각으로 기록한다.
 
 Response `200`: Post
 
@@ -587,7 +534,11 @@ Errors:
 | Method | `DELETE` |
 | Path | `/api/posts/{post_id}` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 3-2, UF-07, SC-05 |
+| Trace | 요구사항 3-2, UF-10, SC-09, `post.status`, `post.deleted_at` |
+
+Processing:
+
+- 삭제 성공 시 `post.status = DELETED`, `post.deleted_at = now()`로 처리한다.
 
 Response `204`: 없음
 
@@ -609,7 +560,7 @@ Errors:
 | Method | `POST` |
 | Path | `/api/posts/{post_id}/likes` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 3-4, SC-05, `likes` |
+| Trace | 요구사항 3-4, UF-11, SC-09, `likes` |
 
 Response `201`: Like
 
@@ -627,7 +578,7 @@ Errors:
 | Method | `DELETE` |
 | Path | `/api/posts/{post_id}/likes` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 3-4, SC-05, `likes` |
+| Trace | 요구사항 3-4, UF-11, SC-09, `likes` |
 
 Response `204`: 없음
 
@@ -647,7 +598,7 @@ Errors:
 | Method | `GET` |
 | Path | `/api/posts/{post_id}/comments` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 4-2, 4-4, SC-05, `comments` |
+| Trace | 요구사항 4-2, 4-4, UF-12, UF-13, SC-09, `comments` |
 
 Response `200`:
 
@@ -657,11 +608,11 @@ Response `200`:
 }
 ```
 
-Visibility rule:
+Rules:
 
-- 공개 댓글/대댓글은 조회 가능하다.
-- 비공개 댓글/대댓글은 작성자, 부모 댓글 작성자, 원 게시글 작성자만 조회 가능하다.
-- 비활성화 또는 삭제 대기 상태의 댓글/대댓글은 목록에 노출하지 않는다.
+- `comments.status = ACTIVE`인 댓글과 대댓글만 일반 목록에 노출한다.
+- 탈퇴 회원이 작성한 댓글과 대댓글은 삭제하지 않고 유지하며, 작성자명은 `탈퇴한 유저`로 표시한다.
+- 익명 댓글과 대댓글은 작성자명 대신 `익명_숫자`로 표시한다.
 
 ### C-02. 댓글 작성
 
@@ -670,14 +621,14 @@ Visibility rule:
 | Method | `POST` |
 | Path | `/api/posts/{post_id}/comments` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 4-1, UF-08, SC-05, `comments` |
+| Trace | 요구사항 4-1, UF-12, SC-09, `comments` |
 
 Request body:
 
 ```json
 {
   "content": "댓글 내용",
-  "is_public": true
+  "is_anonymous": false
 }
 ```
 
@@ -697,18 +648,23 @@ Errors:
 | Method | `POST` |
 | Path | `/api/comments/{comment_id}/replies` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 4-3, SC-05, `comments.parent_comment` |
+| Trace | 요구사항 4-3, UF-13, SC-09, `comments.parent_comment` |
 
 Request body:
 
 ```json
 {
   "content": "대댓글 내용",
-  "is_public": true
+  "is_anonymous": false
 }
 ```
 
 Response `201`: Comment
+
+Rules:
+
+- 부모 댓글은 일반 댓글이어야 한다.
+- 부모 댓글의 `parent_comment`가 NULL이 아니면 대댓글을 작성할 수 없다.
 
 Errors:
 
@@ -718,11 +674,6 @@ Errors:
 | 400 | 대댓글에 다시 대댓글 작성 시도 |
 | 404 | 부모 댓글 없음 |
 
-Rules:
-
-- 부모 댓글은 일반 댓글이어야 한다.
-- 부모 댓글의 `parent_comment`가 NULL이 아니면 대댓글을 작성할 수 없다.
-
 ### C-04. 댓글 또는 대댓글 수정
 
 | 항목 | 내용 |
@@ -730,16 +681,20 @@ Rules:
 | Method | `PATCH` |
 | Path | `/api/comments/{comment_id}` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 4-2, 4-4, SC-05, `comments.is_updated` |
+| Trace | 요구사항 4-2, 4-4, UF-12, UF-13, SC-09, `comments.updated_at` |
 
 Request body:
 
 ```json
 {
   "content": "수정된 댓글 내용",
-  "is_public": true
+  "is_anonymous": false
 }
 ```
+
+Processing:
+
+- 수정 성공 시 `updated_at`을 현재 시각으로 기록한다.
 
 Response `200`: Comment
 
@@ -762,7 +717,11 @@ Errors:
 | Method | `DELETE` |
 | Path | `/api/comments/{comment_id}` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 4-2, 4-4, SC-05 |
+| Trace | 요구사항 4-2, 4-4, UF-12, UF-13, SC-09, `comments.status`, `comments.deleted_at` |
+
+Processing:
+
+- 삭제 성공 시 `comments.status = DELETED`, `comments.deleted_at = now()`로 처리한다.
 
 Response `204`: 없음
 
@@ -786,7 +745,7 @@ Errors:
 | Method | `GET` |
 | Path | `/api/notifications` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 2-2, SC-05, `notification` |
+| Trace | 요구사항 2-2, 2-3, UF-07, SC-07, `notification` |
 
 Response `200`:
 
@@ -800,27 +759,22 @@ Authorization:
 
 - 인증된 회원은 `commented_user_id`가 본인 id인 알림만 조회할 수 있다.
 
-### N-02. 알림 읽음 처리
-
-| 항목 | 내용 |
-|---|---|
-| Method | `PATCH` |
-| Path | `/api/notifications/{notification_id}/read` |
-| 인증 | 인증 필요 |
-| Trace | 요구사항 2-3, `notification.is_read` |
-
 Processing:
 
-- 클라이언트는 알림 클릭 후 해당 알림이 발생한 게시글 또는 댓글 위치에 정상적으로 도달했을 때 이 API를 호출한다.
+- 본인 알림 목록을 팝업 형태로 조회했을 때, 반환 대상 알림을 읽음 처리한다.
 
-Response `200`: Notification
+Navigation:
+
+- 댓글 알림은 `commented_post_id`가 가리키는 게시글 상세 화면으로 이동한다.
+- 댓글 알림의 `commented_id`는 NULL이다.
+- 대댓글 알림은 `commented_post_id`가 가리키는 게시글 안의 부모 댓글 위치로 이동한다.
+- 대댓글 알림의 `commented_id`는 대댓글이 달린 부모 댓글 id다.
 
 Errors:
 
 | Status | 조건 |
 |---:|---|
 | 403 | 다른 회원의 알림 접근 |
-| 404 | 알림 없음 |
 
 ## 9. 개인 일정 API
 
@@ -831,7 +785,7 @@ Errors:
 | Method | `GET` |
 | Path | `/api/me/schedules` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 5-3, UF-09, SC-08, `schedules` |
+| Trace | 요구사항 5-3, UF-15, SC-12, `schedules` |
 
 Query parameters:
 
@@ -852,7 +806,7 @@ Authorization:
 
 - 인증된 회원은 자신의 개인 일정만 조회할 수 있다.
 - 개인 일정은 `group_id = null`인 일정이다.
-- 비활성화 또는 삭제 대기 상태의 개인 일정은 조회하지 않는다.
+- `schedules.status = ACTIVE`인 개인 일정만 일반 조회에 노출한다.
 
 ### S-02. 개인 일정 등록
 
@@ -861,7 +815,7 @@ Authorization:
 | Method | `POST` |
 | Path | `/api/me/schedules` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 5-2, UF-09, SC-09, `schedules` |
+| Trace | 요구사항 5-2, UF-15, SC-13, `schedules` |
 
 Request body:
 
@@ -891,7 +845,7 @@ Errors:
 | Method | `PATCH` |
 | Path | `/api/me/schedules/{schedule_id}` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 5-3, SC-09, `schedules` |
+| Trace | 요구사항 5-3, UF-15, SC-13, `schedules` |
 
 Request body:
 
@@ -904,6 +858,10 @@ Request body:
   "type": 1
 }
 ```
+
+Processing:
+
+- 수정 성공 시 `updated_at`을 현재 시각으로 기록한다.
 
 Response `200`: Schedule
 
@@ -922,7 +880,11 @@ Errors:
 | Method | `DELETE` |
 | Path | `/api/me/schedules/{schedule_id}` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 5-3, SC-09 |
+| Trace | 요구사항 5-3, UF-15, SC-13, `schedules.status`, `schedules.deleted_at` |
+
+Processing:
+
+- 삭제 성공 시 `schedules.status = DELETED`, `schedules.deleted_at = now()`로 처리한다.
 
 Response `204`: 없음
 
@@ -942,7 +904,7 @@ Errors:
 | Method | `GET` |
 | Path | `/api/groups` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 6-1, UF-10, SC-10, `groups`, `group_members` |
+| Trace | 요구사항 6-1, UF-16, SC-14, `groups`, `group_members` |
 
 Response `200`:
 
@@ -955,7 +917,7 @@ Response `200`:
 Rules:
 
 - 현재 회원이 속한 그룹만 조회한다.
-- 비활성화 또는 삭제 대기 상태의 그룹은 조회하지 않는다.
+- `groups.status = ACTIVE`인 그룹만 일반 목록에 노출한다.
 
 ### G-02. 그룹 생성
 
@@ -964,7 +926,7 @@ Rules:
 | Method | `POST` |
 | Path | `/api/groups` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 6-2, UF-10, SC-10, `groups`, `group_members` |
+| Trace | 요구사항 6-2, UF-16, SC-14, `groups`, `group_members` |
 
 Request body:
 
@@ -983,12 +945,14 @@ Response `201`:
     "group_link": "invite-link",
     "name": "스터디 그룹",
     "creator_id": 1,
-    "created_at": "2026-05-09T10:00:00Z"
+    "created_at": "2026-05-09T10:00:00Z",
+    "status": "ACTIVE"
   },
   "membership": {
     "group_id": 1,
     "user_id": 1,
-    "role": "LEADER"
+    "role": "LEADER",
+    "joined_at": "2026-05-09T10:00:00Z"
   }
 }
 ```
@@ -996,6 +960,7 @@ Response `201`:
 Processing:
 
 - 그룹 생성자는 그룹의 `creator_id`가 된다.
+- `creator_id`는 최초 생성자를 기록하며, 현재 그룹장은 `group_members.role = LEADER`로 판단한다.
 - 그룹 생성자는 그룹 생성과 동시에 `group_members`에 자동 등록된다.
 - 그룹 생성자의 역할은 `LEADER`로 설정한다.
 - 생성된 그룹의 `group_link`를 유지한다.
@@ -1013,7 +978,7 @@ Errors:
 | Method | `POST` |
 | Path | `/api/groups/join` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 6-1, UF-10, SC-10, `group_members` |
+| Trace | 요구사항 6-1, UF-16, SC-14, `group_members` |
 
 Request body:
 
@@ -1039,7 +1004,7 @@ Errors:
 | Method | `GET` |
 | Path | `/api/groups/{group_id}` |
 | 인증 | 인증 필요 |
-| Trace | UF-10, SC-11, `groups`, `group_members` |
+| Trace | UF-16, SC-15, `groups`, `group_members` |
 
 Response `200`:
 
@@ -1055,7 +1020,7 @@ Errors:
 | Status | 조건 |
 |---:|---|
 | 403 | 그룹원이 아닌 회원의 접근 |
-| 404 | 그룹 없음 또는 비활성화/삭제 대기 그룹 |
+| 404 | 그룹 없음 또는 비활성화/삭제된 그룹 |
 
 ## 11. 그룹 일정 API
 
@@ -1066,7 +1031,7 @@ Errors:
 | Method | `GET` |
 | Path | `/api/groups/{group_id}/schedules` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 7-2, UF-10, SC-12, `schedules` |
+| Trace | 요구사항 7-2, UF-17, SC-16, `schedules` |
 
 Response `200`:
 
@@ -1080,6 +1045,7 @@ Authorization:
 
 - 해당 그룹의 그룹원만 조회할 수 있다.
 - 타 그룹 캘린더의 그룹 일정은 조회할 수 없다.
+- `schedules.status = ACTIVE`인 그룹 일정만 일반 조회에 노출한다.
 
 ### GS-02. 그룹 일정 등록
 
@@ -1088,7 +1054,7 @@ Authorization:
 | Method | `POST` |
 | Path | `/api/groups/{group_id}/schedules` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 7-2, SC-12, `schedules` |
+| Trace | 요구사항 7-2, UF-17, SC-16, `schedules` |
 
 Request body:
 
@@ -1124,7 +1090,7 @@ Errors:
 | Method | `PATCH` |
 | Path | `/api/groups/{group_id}/schedules/{schedule_id}` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 7-2, UF-10, SC-12, `schedules` |
+| Trace | 요구사항 7-2, UF-17, SC-16, `schedules` |
 
 Request body:
 
@@ -1137,6 +1103,10 @@ Request body:
   "type": 1
 }
 ```
+
+Processing:
+
+- 수정 성공 시 `updated_at`을 현재 시각으로 기록한다.
 
 Response `200`: Schedule
 
@@ -1160,7 +1130,11 @@ Errors:
 | Method | `DELETE` |
 | Path | `/api/groups/{group_id}/schedules/{schedule_id}` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 7-2, SC-12, `schedules` |
+| Trace | 요구사항 7-2, UF-17, SC-16, `schedules.status`, `schedules.deleted_at` |
+
+Processing:
+
+- 삭제 성공 시 `schedules.status = DELETED`, `schedules.deleted_at = now()`로 처리한다.
 
 Response `204`: 없음
 
@@ -1183,7 +1157,7 @@ Errors:
 | 항목 | 내용 |
 |---|---|
 | 상태 | 구현 제외 |
-| Trace | 요구사항 6-3, SC-13 |
+| Trace | 요구사항 6-3, SC-17 |
 
 그룹 채팅은 최신 요구사항에서 구현하지 않는다고 확정되었으므로 채팅 메시지 조회, 전송, 수정, 삭제 API를 제공하지 않는다.
 
@@ -1192,9 +1166,5 @@ Errors:
 | ID | 관련 API | 결정 필요 사항 |
 |---|---|---|
 | OQ-01 | 공통 | 공통 에러 응답 body 형식 |
-| OQ-02 | A-04 | 아이디 찾기 성공 시 아이디 전체 노출 또는 마스킹 여부 |
-| OQ-03 | A-05 | 비밀번호 재설정 화면에서 사용할 검증 토큰 또는 임시 세션 방식 |
-| OQ-04 | A-07 | 비밀번호 변경 시 현재 비밀번호 입력 필요 여부 |
-| OQ-05 | A-08 | 탈퇴 관련 데이터의 비활성화/삭제 대기 상태를 저장할 DB 컬럼과 상태값 |
-| OQ-06 | A-08 | 그룹장 자동 위임 기준을 구현하기 위한 그룹 가입 순서 저장 방식 |
-| OQ-07 | P-02 | 게시글 상세 조회 시 조회수 증가 조건 |
+| OQ-02 | A-05 | 비밀번호 변경 시 현재 비밀번호 입력 필요 여부 |
+| OQ-03 | S-02, GS-02 | 일정 종류 `type`의 구체적인 값 목록 |
