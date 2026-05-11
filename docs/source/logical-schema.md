@@ -8,10 +8,10 @@
     *   Note: `role` (USER, ADMIN), 회원 가입 기본값 USER. ADMIN은 DB seed 데이터 또는 운영자의 직접 DB 변경으로만 부여
 
 ### [2] 게시물 (post)
-*   post (**id**, user_id, title, content, created_at, updated_at, deleted_at, status, view_count, main_category, sub_category, is_anonymous)
+*   post (**id**, user_id, title, content, created_at, updated_at, view_count, main_category, sub_category, is_anonymous)
     *   PK: `id` (int)
     *   FK: `user_id` → users(id)
-    *   Note: `status` (ACTIVE, DELETED), `is_anonymous` (익명 작성 여부)
+    *   Note: `is_anonymous` (익명 작성 여부)
 
 ### [3] 추천 (likes)
 *   likes (**id**, user_id, post_id, created_at)
@@ -21,12 +21,11 @@
     *   Unique: ('user_id', 'post_id')
 
 ### [4] 댓글 (comments)
-*   comments (**id**, user_id, post_id, parent_comment, content, is_anonymous, created_at, updated_at, deleted_at, status)
+*   comments (**id**, user_id, post_id, parent_comment, content, is_anonymous, created_at, updated_at)
     *   PK: `id` (int)
     *   FK: `user_id` → users(id)
     *       `post_id` → post(id)
     *       `parent_comment` → comments(id) //대댓글을 위한 자기참조
-    *   Note: `status` (ACTIVE, DELETED)
 
 ### [5] 신고 (report)
 *   report (**id**, reporter_id, target_type, target_id, reason_type, created_at, status, processed_by, processed_at)
@@ -42,11 +41,10 @@
     *   Note: 다형 대상 참조(`target_type`, `target_id`)의 실제 대상 존재 여부는 구현 단계에서 서비스 로직 또는 트리거로 검증한다.
 
 ### [6] 스터디 그룹 (Groups)
-*   groups (**id**, group_code, name, creator_id, created_at, deleted_at, status)
+*   groups (**id**, group_code, name, leader_id, created_at)
     *   PK: `id` (int)
     *   Unique: `group_code`
     *   FK: `creator_id` → users(id)
-    *   Note: `status` (ACTIVE, INACTIVE, DELETED)
     *   Note: 화면에서 `group_link`라고 표현하는 값은 그룹 가입 코드(`group_code`)와 같은 값이다. 초대 URL, 외부 공유, 만료 시간, 재발급 기능은 제외한다.
 
 ### [7] 그룹 멤버 (Group_Members)
@@ -58,11 +56,10 @@
     *   Note: 그룹의 최초 생성자는 `groups.creator_id`, 현재 그룹장은 `group_members.role = LEADER`로 판단
 
 ### [8] 통합 일정 (Schedules)
-*   schedules (**id**, user_id, group_id, title, start_at, end_at, description, type, created_at, updated_at, deleted_at, status)
+*   schedules (**id**, user_id, group_id, title, start_at, end_at, description, type, created_at, updated_at)
     *   PK: `id` (int)
     *   FK: `user_id` → users(id)
     *       `group_id` → groups(id) (NULL이면 개인 일정)
-    *   Note: `status` (ACTIVE, DELETED)
     *   Note: `type` (1: 수업, 2: 과제, 3: 시험, 4: 스터디, 5: 기타)
 
 ### [9] 첨부파일(file)
