@@ -60,7 +60,7 @@ API 실패 응답 body는 공통 에러 응답 형식을 사용한다.
 
 deleted_at으로부터 6개월이 지나지 않은 탈퇴 회원은 정보 삭제 대기 중인 회원으로 본다.
 
-deleted_at으로부터 6개월이 지난 탈퇴 회원은 정책에 따라 개인정보 삭제 대상으로 처리하며, login_id, password, name, email_address 등 개인정보성 컬럼은 null 값으로 변경한다. null 값이 들어갈 수 없는 속성의 경우 식별할 수 없는 값으로 변경한다.
+deleted_at으로부터 6개월이 지난 탈퇴 회원은 정책에 따라 개인정보 삭제 대상으로 처리하며, login_id, password, name, email_address 등 개인정보성 컬럼은 null 값으로 변경한다.
 
 탈퇴한 회원의 기본키인 user_id는 다른 테이블의 FK 참조 무결성을 유지하기 위해 삭제하지 않는다.
 
@@ -172,7 +172,9 @@ ADMIN 권한은 DB seed 데이터 또는 운영자의 직접 DB 변경으로만 
 
 업로드된 실제 파일은 서버 로컬 경로에 저장하고, DB에는 file_url만 저장한다.
 
-파일 저장 경로와 DB에 저장되는 file_url은 `/uploads/posts/{post_id}/...` 형식을 기본으로 한다.
+파일 저장 경로와 DB에 저장되는 file_url은 `/uploads/posts/{post_id}/{UUID}` 형식을 기본으로 한다.
+
+UUID를 사용하는 이유는, 동일 게시글 내 파일명 중복을 방지하기 위함이다.
 
 파일명, 원본 파일명, 파일 크기, MIME 타입, 확장자 등 별도 파일 메타데이터는 DB에 저장하지 않는다.
 
