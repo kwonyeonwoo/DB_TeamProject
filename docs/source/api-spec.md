@@ -24,7 +24,7 @@
 | ID 타입 | integer |
 | 일시 타입 | ISO-8601 문자열 |
 | 기본 정렬 | 명시가 없으면 최신순 |
-| 에러 응답 형식 | Open Questions에서 결정 필요 |
+| 에러 응답 형식 | `code`, `message` 필수. `details` 선택 |
 
 Authentication:
 
@@ -33,10 +33,18 @@ Authentication:
 - 로그아웃 시 서버에 저장된 사용자 세션을 무효화한다.
 - 세션 무효화 이후 해당 세션으로는 인증이 필요한 기능을 사용할 수 없다.
 
+Authorization:
+
+- 회원 가입으로 생성되는 회원의 `role`은 `USER`다.
+- 회원 가입 요청 또는 일반 API 호출로 `ADMIN` 권한을 부여할 수 없다.
+- `ADMIN` 권한은 DB seed 데이터 또는 운영자의 직접 DB 변경으로만 부여한다.
+- 관리자 권한 부여 또는 회수 API는 제공하지 않는다.
+
 Lifecycle:
 
 - 탈퇴 회원은 `users.status = DELETED`, `users.deleted_at = now()`로 처리한다.
-- 탈퇴 처리 시 `login_id`, `password`, `name`, `email_address` 등 개인정보성 컬럼은 삭제하거나 식별할 수 없는 값으로 변경한다.
+- 탈퇴 처리 시점에는 회원 row와 개인정보성 컬럼을 유지하고, `deleted_at`으로부터 6개월이 지나지 않은 탈퇴 회원은 정보 삭제 대기 중인 회원으로 본다.
+- `deleted_at`으로부터 6개월이 지난 탈퇴 회원은 정책에 따라 개인정보 삭제 대상으로 처리하며, `login_id`, `password`, `name`, `email_address` 등 개인정보성 컬럼은 NULL 값으로 변경한다. NULL 값이 들어갈 수 없는 속성의 경우 식별할 수 없는 값으로 변경한다.
 - 탈퇴 회원이 작성한 게시글, 댓글, 대댓글은 삭제하지 않고 유지한다.
 - 탈퇴 회원 작성물은 일반 조회, 검색, 페이지네이션 대상에 포함한다.
 - 탈퇴 회원 작성물의 작성자명은 `탈퇴한 유저`로 표시하며, 익명 표시보다 우선한다.
@@ -65,6 +73,21 @@ Display:
 | 404 | 대상 리소스 없음 |
 | 409 | 중복 또는 상태 충돌 |
 
+공통 에러 응답:
+
+```json
+{
+  "code": "VALIDATION_ERROR",
+  "message": "필수 입력값이 누락되었습니다."
+}
+```
+
+Rules:
+
+- 실패 응답 body는 `code`, `message`를 필수 필드로 사용한다.
+- `details`는 기본 응답 필드로 사용하지 않으며, 입력값별 상세 오류가 필요한 경우에만 선택값으로 포함할 수 있다.
+- `details`를 포함하는 경우에도 `code`, `message`는 항상 포함한다.
+
 ## 4. 리소스 필드
 
 ### 4-1. User
@@ -77,8 +100,8 @@ Display:
 | `email_address` | string, nullable | 이메일. 탈퇴 후 NULL 가능 |
 | `created_at` | string | 가입 일시 |
 | `deleted_at` | string, nullable | 회원 탈퇴 일시 |
-| `status` | string | `ACTIVE`, `INACTIVE`, `DELETED` |
-| `role` | string, nullable | 사용자 역할 |
+| `status` | string | `ACTIVE`, `DELETED` |
+| `role` | string | `USER`, `ADMIN` |
 
 `password`는 응답에 포함하지 않는다.
 
@@ -96,7 +119,6 @@ Display:
 | `deleted_at` | string, nullable | 삭제 일시 |
 | `status` | string | `ACTIVE`, `DELETED` |
 | `view_count` | integer | 조회수 |
-| `is_reported` | boolean | 신고 여부 |
 | `main_category` | string | 대주제, 학과 |
 | `sub_category` | string | 소주제, 과목 |
 | `is_anonymous` | boolean | 익명 작성 여부 |
@@ -138,7 +160,21 @@ Display:
 | `post_id` | integer | 추천받은 게시글 id |
 | `created_at` | string | 추천 일시 |
 
-### 4-6. Notification
+### 4-6. Report
+
+| 필드 | 타입 | 설명 |
+|---|---|---|
+| `id` | integer | 신고 식별자 |
+| `reporter_id` | integer | 신고한 회원 id |
+| `target_type` | string | `POST`, `COMMENT` |
+| `target_id` | integer | 신고 대상 id. `target_type`에 따라 게시글 id 또는 댓글/대댓글 id |
+| `reason_type` | integer | 신고 사유. `1`: 부적절한 내용, `2`: 광고/도배, `3`: 저작권 침해, `4`: 기타 |
+| `created_at` | string | 신고 시각 |
+| `status` | string | 신고 처리 상태. `PENDING`, `PROCESSED` |
+| `processed_by` | integer, nullable | 신고를 처리한 관리자 회원 id |
+| `processed_at` | string, nullable | 신고 처리 시각 |
+
+### 4-7. Notification
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
@@ -150,12 +186,12 @@ Display:
 | `commented_id` | integer, nullable | 댓글 알림이면 NULL, 대댓글 알림이면 부모 댓글 id |
 | `created_at` | string | 알림 생성 일시 |
 
-### 4-7. Group
+### 4-8. Group
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
 | `id` | integer | 그룹 식별자 |
-| `group_link` | string | 그룹 링크 |
+| `group_code` | string | 그룹 가입 코드 |
 | `name` | string | 그룹명 |
 | `creator_id` | integer | 생성자 id |
 | `created_at` | string | 생성 일시 |
@@ -164,7 +200,7 @@ Display:
 
 그룹 채팅은 요구사항상 구현하지 않으므로 채팅 리소스와 API를 제공하지 않는다.
 
-### 4-8. GroupMember
+### 4-9. GroupMember
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
@@ -173,7 +209,7 @@ Display:
 | `role` | string | `LEADER`, `MEMBER` |
 | `joined_at` | string | 그룹 가입 일시. 그룹장 자동 위임 기준 |
 
-### 4-9. Schedule
+### 4-10. Schedule
 
 | 필드 | 타입 | 설명 |
 |---|---|---|
@@ -184,7 +220,7 @@ Display:
 | `start_at` | string | 시작 일시 |
 | `end_at` | string | 종료 일시 |
 | `description` | string, nullable | 메모 또는 설명 |
-| `type` | integer | 일정 종류 |
+| `type` | integer | 일정 종류. `1`: 수업, `2`: 과제, `3`: 시험, `4`: 스터디, `5`: 기타 |
 | `created_at` | string | 생성 일시 |
 | `updated_at` | string, nullable | 수정 일시 |
 | `deleted_at` | string, nullable | 삭제 일시 |
@@ -219,6 +255,9 @@ Rules:
 - `login_id`, `password`, `name`, `email_address`는 필수다.
 - `login_id`, `email_address`는 중복될 수 없다.
 - 탈퇴 회원의 NULL 처리된 `login_id`, `email_address`는 중복 판단 대상에서 제외한다.
+- 회원 가입으로 생성되는 회원의 `role`은 `USER`다.
+- 회원 가입 request body는 `role`을 받지 않는다.
+- `ADMIN` 권한은 회원 가입/API로 부여하지 않고 DB seed 데이터 또는 운영자의 직접 DB 변경으로만 부여한다.
 
 Errors:
 
@@ -255,7 +294,8 @@ Response `200`:
     "login_id": "student01",
     "name": "홍길동",
     "email_address": "student@example.com",
-    "status": "ACTIVE"
+    "status": "ACTIVE",
+    "role": "USER"
   }
 }
 ```
@@ -315,6 +355,7 @@ Request body:
 {
   "name": "홍길동",
   "email_address": "new-email@example.com",
+  "current_password": "current-password",
   "new_password": "new-password"
 }
 ```
@@ -324,6 +365,8 @@ Rules:
 - 이름, 이메일, 비밀번호 중 하나 이상을 수정한다.
 - 기존 정보와 동일한 내용으로 수정할 수 없다.
 - `email_address`는 중복될 수 없다.
+- 비밀번호를 변경하는 경우 `current_password`를 필수로 입력한다.
+- 서버는 `current_password`가 기존 비밀번호와 일치하는 경우에만 새 비밀번호로 변경한다.
 
 Response `200`: User
 
@@ -333,12 +376,10 @@ Errors:
 |---:|---|
 | 400 | 수정 필드 없음 |
 | 400 | 기존 정보와 동일한 내용으로 수정 시도 |
+| 400 | 비밀번호 변경 시 `current_password` 누락 |
 | 401 | 인증되지 않음 |
+| 403 | `current_password` 불일치 |
 | 409 | `email_address` 중복 |
-
-Open Questions:
-
-- 비밀번호 변경 시 현재 비밀번호 입력을 필수로 받을지 결정 필요
 
 ### A-06. 회원 탈퇴
 
@@ -353,7 +394,8 @@ Processing:
 
 - 현재 회원의 `deleted_at`을 현재 시각으로 기록한다.
 - 현재 회원의 `status`를 `DELETED`로 변경한다.
-- 현재 회원의 개인정보성 컬럼은 삭제하거나 식별할 수 없는 값으로 변경한다.
+- 현재 회원의 개인정보성 컬럼은 탈퇴 처리 시점에 즉시 변경하지 않는다.
+- `deleted_at`으로부터 6개월이 지난 탈퇴 회원은 정책에 따라 개인정보 삭제 대상으로 처리하며, `login_id`, `password`, `name`, `email_address` 등 개인정보성 컬럼은 NULL 값으로 변경한다.
 - 현재 회원의 서버 세션을 무효화한다.
 - 탈퇴 회원이 작성한 게시글, 댓글, 대댓글은 삭제하지 않는다.
 - 탈퇴 회원의 개인 일정은 `schedules.status = DELETED`, `schedules.deleted_at = now()`로 전환하고 일반 조회에 노출하지 않는다.
@@ -415,7 +457,6 @@ Response `200`:
       "updated_at": null,
       "status": "ACTIVE",
       "view_count": 0,
-      "is_reported": false,
       "main_category": "컴퓨터공학과",
       "sub_category": "데이터베이스",
       "is_anonymous": true,
@@ -481,6 +522,13 @@ Multipart fields:
 
 Response `201`: Post
 
+Processing:
+
+- 업로드된 실제 파일은 서버 로컬 경로에 저장한다.
+- 파일 저장 경로와 DB에 저장되는 `file_url`은 `/uploads/posts/{post_id}/...` 형식을 기본으로 한다.
+- DB에는 `file_url`만 저장하며, 파일명, 원본 파일명, 파일 크기, MIME 타입, 확장자 등 별도 파일 메타데이터는 저장하지 않는다.
+- 파일 크기와 확장자 제한 정책은 최소 구현 범위에서 별도 요구사항으로 두지 않는다.
+
 Client behavior:
 
 - 작성 완료 후 화면은 게시판 첫 번째 페이지로 이동한다.
@@ -511,11 +559,14 @@ Request fields:
 | `main_category` | string | no | 수정 대주제 |
 | `sub_category` | string | no | 수정 소주제 |
 | `is_anonymous` | boolean | no | 익명 작성 여부 |
-| `files` | file[] | no | 교체 또는 추가할 첨부파일 |
+| `files` | file[] | no | 새로 업로드할 첨부파일 목록 |
 
 Processing:
 
 - 수정 성공 시 `updated_at`을 현재 시각으로 기록한다.
+- 새 파일이 업로드되면 기존 첨부파일 목록을 전체 교체한다.
+- 새 파일이 업로드되지 않으면 기존 첨부파일 목록을 유지한다.
+- DB에는 업로드된 파일의 `file_url`만 저장하며 별도 파일 메타데이터는 저장하지 않는다.
 
 Response `200`: Post
 
@@ -589,7 +640,129 @@ Errors:
 | 404 | 게시글 없음 |
 | 404 | 추천하지 않은 게시글 |
 
-## 7. 댓글 API
+## 7. 신고 API
+
+### R-01. 신고 생성
+
+| 항목 | 내용 |
+|---|---|
+| Method | `POST` |
+| Path | `/api/reports` |
+| 인증 | 인증 필요 |
+| Trace | 요구사항 1-5, 3-5, UF-11A, SC-09, `report` |
+
+Request body:
+
+```json
+{
+  "target_type": "POST",
+  "target_id": 1,
+  "reason_type": 1
+}
+```
+
+Rules:
+
+- 일반 사용자(`role = USER`)는 게시글 또는 댓글을 신고할 수 있다.
+- `target_type`은 `POST`, `COMMENT` 중 하나다. `COMMENT`는 댓글과 대댓글이 저장된 `comments` 대상을 의미한다.
+- `target_id`는 `target_type`에 따라 게시글 id 또는 댓글 id를 의미한다.
+- `reason_type`은 `1`, `2`, `3`, `4` 중 하나다.
+- 동일 회원은 동일 신고 대상에 대해 한 번만 신고할 수 있다.
+- 신고 생성 시 `status = PENDING`, `processed_by = null`, `processed_at = null`로 저장한다.
+
+Response `201`: Report
+
+Errors:
+
+| Status | 조건 |
+|---:|---|
+| 400 | 필수 입력값 누락 |
+| 400 | 유효하지 않은 `target_type` 또는 `reason_type` |
+| 403 | 신고 권한 없음 |
+| 404 | 신고 대상 없음 |
+| 409 | 이미 신고한 대상 |
+
+### R-02. 관리자 신고 목록 조회
+
+| 항목 | 내용 |
+|---|---|
+| Method | `GET` |
+| Path | `/api/admin/reports` |
+| 인증 | 인증 필요 |
+| Trace | 요구사항 1-5, 3-5, UF-18, SC-18, `report` |
+
+Authorization:
+
+- 관리자(`role = ADMIN`)만 신고 목록을 조회할 수 있다.
+
+Response `200`:
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "reporter_id": 2,
+      "target_type": "POST",
+      "target_id": 10,
+      "reason_type": 1,
+      "created_at": "2026-05-09T10:00:00Z",
+      "status": "PENDING",
+      "processed_by": null,
+      "processed_at": null
+    }
+  ]
+}
+```
+
+Rules:
+
+- 관리자 신고 목록에는 신고 대상, 신고자, 신고 사유, 신고 시각, 신고 처리 상태, 처리자, 처리 시각을 표시할 수 있도록 `target_type`, `target_id`, `reporter_id`, `reason_type`, `created_at`, `status`, `processed_by`, `processed_at`을 반환한다.
+
+Errors:
+
+| Status | 조건 |
+|---:|---|
+| 403 | 관리자 권한 없음 |
+
+### R-03. 관리자 신고 처리
+
+| 항목 | 내용 |
+|---|---|
+| Method | `PATCH` |
+| Path | `/api/admin/reports/{report_id}` |
+| 인증 | 인증 필요 |
+| Trace | 요구사항 1-5, 3-5, UF-18, SC-18, `report.status`, `report.processed_by`, `report.processed_at` |
+
+Authorization:
+
+- 관리자(`role = ADMIN`)만 신고 처리 API를 호출할 수 있다.
+
+Request body:
+
+```json
+{
+  "status": "PROCESSED"
+}
+```
+
+Processing:
+
+- 신고 처리 API는 신고 대상 게시글 또는 댓글 삭제를 자동 수행하지 않는다.
+- 신고 처리 API는 신고 상태만 변경하며, 처리 이력으로 `processed_by`와 `processed_at`을 함께 기록한다.
+- 처리 성공 시 `report.status = PROCESSED`, `report.processed_by = 현재 관리자 id`, `report.processed_at = now()`로 저장한다.
+
+Response `200`: Report
+
+Errors:
+
+| Status | 조건 |
+|---:|---|
+| 400 | 유효하지 않은 `status` |
+| 403 | 관리자 권한 없음 |
+| 404 | 신고 없음 |
+
+## 8. 댓글 API
 
 ### C-01. 게시글 댓글 목록 조회
 
@@ -621,7 +794,7 @@ Rules:
 | Method | `POST` |
 | Path | `/api/posts/{post_id}/comments` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 4-1, UF-12, SC-09, `comments` |
+| Trace | 요구사항 2-1, 4-1, UF-12, SC-09, `comments`, `notification` |
 
 Request body:
 
@@ -633,6 +806,13 @@ Request body:
 ```
 
 Response `201`: Comment
+
+Processing:
+
+- 댓글 작성자가 게시글 작성자와 다른 회원이면 게시글 작성자에게 댓글 알림을 생성한다.
+- 댓글 작성자가 게시글 작성자와 같은 회원이면 자기 자신의 게시글에 댓글을 작성한 경우이므로 댓글 알림을 생성하지 않는다.
+- 댓글 알림의 `commented_post_id`는 댓글이 작성된 게시글 id이고, `commented_id`는 NULL이다.
+- 댓글 알림의 `commented_user_id`는 게시글 작성자 id다.
 
 Errors:
 
@@ -648,7 +828,7 @@ Errors:
 | Method | `POST` |
 | Path | `/api/comments/{comment_id}/replies` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 4-3, UF-13, SC-09, `comments.parent_comment` |
+| Trace | 요구사항 2-1, 4-3, UF-13, SC-09, `comments.parent_comment`, `notification` |
 
 Request body:
 
@@ -665,6 +845,14 @@ Rules:
 
 - 부모 댓글은 일반 댓글이어야 한다.
 - 부모 댓글의 `parent_comment`가 NULL이 아니면 대댓글을 작성할 수 없다.
+
+Processing:
+
+- 대댓글 작성자가 부모 댓글 작성자와 다른 회원이면 부모 댓글 작성자에게 대댓글 알림을 생성한다.
+- 대댓글 작성자가 부모 댓글 작성자와 같은 회원이면 자기 자신의 댓글에 대댓글을 작성한 경우이므로 댓글 알림을 생성하지 않는다.
+- 대댓글 알림의 `commented_post_id`는 부모 댓글이 속한 게시글 id다.
+- 대댓글 알림의 `commented_id`는 대댓글이 달린 부모 댓글 id다.
+- 대댓글 알림의 `commented_user_id`는 부모 댓글 작성자 id다.
 
 Errors:
 
@@ -736,7 +924,7 @@ Errors:
 | 403 | 작성자가 아닌 회원의 삭제 시도 |
 | 404 | 댓글 없음 |
 
-## 8. 알림 API
+## 9. 알림 API
 
 ### N-01. 내 알림 목록 조회
 
@@ -776,7 +964,7 @@ Errors:
 |---:|---|
 | 403 | 다른 회원의 알림 접근 |
 
-## 9. 개인 일정 API
+## 10. 개인 일정 API
 
 ### S-01. 개인 일정 목록 조회
 
@@ -836,6 +1024,7 @@ Errors:
 | Status | 조건 |
 |---:|---|
 | 400 | 필수 입력값 누락 |
+| 400 | 유효하지 않은 `type` |
 | 400 | `end_at`이 `start_at`보다 빠른 경우 |
 
 ### S-03. 개인 일정 수정
@@ -869,6 +1058,7 @@ Errors:
 
 | Status | 조건 |
 |---:|---|
+| 400 | 유효하지 않은 `type` |
 | 400 | `end_at`이 `start_at`보다 빠른 경우 |
 | 403 | 다른 회원의 개인 일정 접근 |
 | 404 | 일정 없음 |
@@ -895,7 +1085,7 @@ Errors:
 | 403 | 다른 회원의 개인 일정 접근 |
 | 404 | 일정 없음 |
 
-## 10. 그룹 API
+## 11. 그룹 API
 
 ### G-01. 내 그룹 목록 조회
 
@@ -942,7 +1132,7 @@ Response `201`:
 {
   "group": {
     "id": 1,
-    "group_link": "invite-link",
+    "group_code": "ABC123",
     "name": "스터디 그룹",
     "creator_id": 1,
     "created_at": "2026-05-09T10:00:00Z",
@@ -963,7 +1153,10 @@ Processing:
 - `creator_id`는 최초 생성자를 기록하며, 현재 그룹장은 `group_members.role = LEADER`로 판단한다.
 - 그룹 생성자는 그룹 생성과 동시에 `group_members`에 자동 등록된다.
 - 그룹 생성자의 역할은 `LEADER`로 설정한다.
-- 생성된 그룹의 `group_link`를 유지한다.
+- 생성된 그룹의 `group_code`를 유지한다.
+- 생성된 `group_code`는 화면에 보여준다.
+- 화면에서 `group_link`라고 표현하는 값은 가입자가 입력하는 그룹 가입 코드와 같은 값이다.
+- 복잡한 초대 링크, 외부 공유 기능, 만료 시간, 재발급 기능은 제공하지 않는다.
 
 Errors:
 
@@ -978,23 +1171,29 @@ Errors:
 | Method | `POST` |
 | Path | `/api/groups/join` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 6-1, UF-16, SC-14, `group_members` |
+| Trace | 요구사항 6-1, 6-2, UF-16, SC-14, `groups.group_code`, `group_members` |
 
 Request body:
 
 ```json
 {
-  "group_link": "invite-link"
+  "group_code": "ABC123"
 }
 ```
 
 Response `201`: GroupMember
 
+Rules:
+
+- 회원은 그룹 가입 코드를 입력하여 그룹에 가입한다.
+- 가입은 단순 코드 입력 방식으로 처리한다.
+- 같은 그룹에 이미 가입한 회원은 중복 가입할 수 없다.
+
 Errors:
 
 | Status | 조건 |
 |---:|---|
-| 404 | 유효하지 않은 그룹 링크 |
+| 404 | 유효하지 않은 그룹 가입 코드 |
 | 409 | 이미 가입한 그룹 |
 
 ### G-04. 그룹 상세 조회
@@ -1022,7 +1221,7 @@ Errors:
 | 403 | 그룹원이 아닌 회원의 접근 |
 | 404 | 그룹 없음 또는 비활성화/삭제된 그룹 |
 
-## 11. 그룹 일정 API
+## 12. 그룹 일정 API
 
 ### GS-01. 그룹 일정 목록 조회
 
@@ -1079,6 +1278,7 @@ Errors:
 | Status | 조건 |
 |---:|---|
 | 400 | 필수 입력값 누락 |
+| 400 | 유효하지 않은 `type` |
 | 400 | `end_at`이 `start_at`보다 빠른 경우 |
 | 403 | 그룹원이 아닌 회원의 접근 |
 | 404 | 그룹 없음 |
@@ -1119,6 +1319,7 @@ Errors:
 
 | Status | 조건 |
 |---:|---|
+| 400 | 유효하지 않은 `type` |
 | 400 | `end_at`이 `start_at`보다 빠른 경우 |
 | 403 | 그룹원이 아닌 회원의 접근 |
 | 404 | 그룹 또는 일정 없음 |
@@ -1150,7 +1351,7 @@ Errors:
 | 403 | 그룹원이 아닌 회원의 접근 |
 | 404 | 그룹 또는 일정 없음 |
 
-## 12. 제외 API
+## 13. 제외 API
 
 ### X-01. 그룹 채팅
 
@@ -1161,10 +1362,6 @@ Errors:
 
 그룹 채팅은 최신 요구사항에서 구현하지 않는다고 확정되었으므로 채팅 메시지 조회, 전송, 수정, 삭제 API를 제공하지 않는다.
 
-## 13. Open Questions
+## 14. Open Questions
 
-| ID | 관련 API | 결정 필요 사항 |
-|---|---|---|
-| OQ-01 | 공통 | 공통 에러 응답 body 형식 |
-| OQ-02 | A-05 | 비밀번호 변경 시 현재 비밀번호 입력 필요 여부 |
-| OQ-03 | S-02, GS-02 | 일정 종류 `type`의 구체적인 값 목록 |
+현재 요구사항 기준으로 API 명세에 남은 Open Questions는 없다.
