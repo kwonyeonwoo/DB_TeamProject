@@ -55,8 +55,6 @@ Indexes:
 | `content` | CLOB | yes | - | - | 본문 |
 | `created_at` | TIMESTAMP | no | - | CURRENT_TIMESTAMP | 작성 일시 |
 | `updated_at` | TIMESTAMP | yes | - | - | 수정 일시 |
-| `deleted_at` | TIMESTAMP | yes | - | - | 삭제 일시 |
-| `status` | VARCHAR(20) | no | CHECK `ACTIVE`, `DELETED` | `ACTIVE` | 게시글 상태 |
 | `view_count` | INTEGER | no | CHECK `>= 0` | 0 | 조회수 |
 | `main_category` | VARCHAR(100) | no | - | - | 대주제 |
 | `sub_category` | VARCHAR(100) | no | - | - | 소주제 |
@@ -69,10 +67,9 @@ Foreign keys:
 Indexes:
 
 - `idx_post_user_id(user_id)`
-- `idx_post_status_created_at(status, created_at)`
 - `idx_post_category(main_category, sub_category)`
 - `idx_post_created_at(created_at)`
-- `idx_post_author_filter(user_id, is_anonymous, status)`
+- `idx_post_author_filter(user_id, is_anonymous)`
 
 ### likes
 
@@ -105,8 +102,6 @@ Indexes:
 | `is_anonymous` | BOOLEAN | no | CHECK boolean | FALSE | 익명 여부 |
 | `created_at` | TIMESTAMP | no | - | CURRENT_TIMESTAMP | 작성 일시 |
 | `updated_at` | TIMESTAMP | yes | - | - | 수정 일시 |
-| `deleted_at` | TIMESTAMP | yes | - | - | 삭제 일시 |
-| `status` | VARCHAR(20) | no | CHECK `ACTIVE`, `DELETED` | `ACTIVE` | 댓글 상태 |
 
 Foreign keys:
 
@@ -119,7 +114,6 @@ Indexes:
 - `idx_comments_user_id(user_id)`
 - `idx_comments_post_id(post_id)`
 - `idx_comments_parent_comment(parent_comment)`
-- `idx_comments_status_created_at(status, created_at)`
 - `idx_comments_anonymous(post_id, is_anonymous)`
 
 ### report
@@ -164,20 +158,17 @@ Notes:
 | `id` | INTEGER identity | no | PK | - | 그룹 식별자 |
 | `group_code` | VARCHAR(255) | no | UNIQUE | - | 그룹 가입 코드. `group_link`와 같은 값 |
 | `name` | VARCHAR(100) | no | - | - | 그룹명 |
-| `creator_id` | INTEGER | no | FK -> `users.id` | - | 최초 생성자 |
+| `leader_id` | INTEGER | no | FK -> `users.id` | - | 현재 그룹장 |
 | `created_at` | TIMESTAMP | no | - | CURRENT_TIMESTAMP | 생성 일시 |
-| `deleted_at` | TIMESTAMP | yes | - | - | 삭제/비활성화 일시 |
-| `status` | VARCHAR(20) | no | CHECK `ACTIVE`, `INACTIVE`, `DELETED` | `ACTIVE` | 그룹 상태 |
 
 Foreign keys:
 
-- `groups.creator_id -> users.id ON DELETE NO ACTION ON UPDATE CASCADE`
+- `groups.leader_id -> users.id ON DELETE NO ACTION ON UPDATE CASCADE`
 
 Indexes:
 
 - unique `groups(group_code)`
-- `idx_groups_creator_id(creator_id)`
-- `idx_groups_status(status)`
+- `idx_groups_leader_id(leader_id)`
 
 ### group_members
 
@@ -213,8 +204,6 @@ Indexes:
 | `type` | INTEGER | no | CHECK 1, 2, 3, 4, 5 | - | 일정 종류 |
 | `created_at` | TIMESTAMP | no | - | CURRENT_TIMESTAMP | 생성 일시 |
 | `updated_at` | TIMESTAMP | yes | - | - | 수정 일시 |
-| `deleted_at` | TIMESTAMP | yes | - | - | 삭제 일시 |
-| `status` | VARCHAR(20) | no | CHECK `ACTIVE`, `DELETED` | `ACTIVE` | 일정 상태 |
 
 Foreign keys:
 
@@ -226,7 +215,6 @@ Indexes:
 - `idx_schedules_user_period(user_id, start_at, end_at)`
 - `idx_schedules_group_period(group_id, start_at, end_at)`
 - `idx_schedules_type(type)`
-- `idx_schedules_status(status)`
 
 ### file
 
@@ -246,7 +234,7 @@ Indexes:
 
 Notes:
 
-- 실제 파일은 서버 로컬 `/uploads/posts/{post_id}/...` 경로에 저장한다.
+- 실제 파일은 서버 로컬 `/uploads/posts/{post_id}/{UUID}` 경로에 저장한다.
 - DB에는 `file_url`만 저장하고 별도 파일 메타데이터는 저장하지 않는다.
 
 ### notification
@@ -296,7 +284,7 @@ Indexes:
 | `comments` | `comments.parent_comment`, `notification.commented_id` | CASCADE | CASCADE |
 | `groups` | `group_members`, `schedules` | CASCADE | CASCADE |
 
-Business deletion is normally soft deletion via `status` and `deleted_at` where those fields exist.
+`users` 외의 `post`, `comments`, `groups`, `schedules`에는 원본 물리 스키마 기준 별도 삭제 상태 컬럼을 두지 않는다.
 
 ## 4. Assumptions
 

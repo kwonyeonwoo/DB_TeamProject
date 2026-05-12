@@ -15,13 +15,13 @@
 | 객체 | 테이블 | 설명 | 주요 기능 ID |
 |---|---|---|---|
 | User | `users` | 회원 계정. 로그인 아이디가 아니라 `id`가 회원 식별자다. | AUTH-001, AUTH-002, USER-001, USER-002, USER-003 |
-| Post | `post` | 학업 자료 공유 게시글. 익명 여부, 주제, 조회수, 상태를 가진다. | POST-001..POST-005 |
+| Post | `post` | 학업 자료 공유 게시글. 익명 여부, 주제, 조회수를 가진다. | POST-001..POST-005 |
 | File | `file` | 게시글 첨부파일 저장 위치. DB에는 `file_url`만 저장한다. | POST-003, POST-004 |
 | Like | `likes` | 회원의 게시글 추천 이력. 회원당 게시글 1회만 유지한다. | POST-006, POST-007 |
 | Comment | `comments` | 댓글과 대댓글을 같은 테이블에 저장한다. `parent_comment`가 NULL이면 댓글, 값이 있으면 대댓글이다. | COMMENT-001..COMMENT-005 |
 | Report | `report` | 게시글 또는 댓글/대댓글 신고 이력과 관리자 처리 상태를 저장한다. | REPORT-001..REPORT-003 |
 | Notification | `notification` | 댓글/대댓글 발생 알림. 본인 알림만 조회한다. | NOTI-001 |
-| Group | `groups` | 그룹 정보와 가입 코드를 저장한다. | GROUP-001..GROUP-004 |
+| Group | `groups` | 그룹 정보, 현재 그룹장, 가입 코드를 저장한다. | GROUP-001..GROUP-004 |
 | GroupMember | `group_members` | 회원과 그룹의 가입 관계 및 그룹 내 역할을 저장한다. | GROUP-002..GROUP-004, GCAL-001..GCAL-004 |
 | Schedule | `schedules` | 개인 일정과 그룹 일정을 통합 저장한다. `group_id`가 NULL이면 개인 일정이다. | CAL-001..CAL-004, GCAL-001..GCAL-004 |
 
@@ -37,7 +37,7 @@
 | Comment - Comment | 1:N | 일반 댓글 하나는 여러 대댓글의 부모가 될 수 있다. 대댓글에는 다시 대댓글을 작성할 수 없다. |
 | User - Report | 1:N | 회원 한 명은 여러 대상을 신고할 수 있다. |
 | Report - Post/Comment | N:1 | `target_type`, `target_id`로 다형 참조한다. 실제 대상 검증은 서비스 로직에서 수행한다. |
-| User - Group | 1:N | `groups.creator_id`는 최초 그룹 생성자를 기록한다. |
+| User - Group | 1:N | `groups.leader_id`는 현재 그룹장을 기록한다. |
 | User - GroupMember - Group | N:M | 회원은 여러 그룹에 가입할 수 있고 그룹은 여러 회원을 가진다. |
 | User/Group - Schedule | 1:N | 개인 일정은 `group_id = NULL`, 그룹 일정은 `group_id != NULL`이다. |
 | Notification - User | N:1 | `commented_user_id`가 알림 수신자다. |
@@ -49,11 +49,7 @@
 |---|---|---|
 | `users.status` | `ACTIVE`, `DELETED` | 활성 또는 탈퇴 회원 |
 | `users.role` | `USER`, `ADMIN` | 일반 사용자 또는 관리자 |
-| `post.status` | `ACTIVE`, `DELETED` | 일반 노출 또는 삭제된 게시글 |
-| `comments.status` | `ACTIVE`, `DELETED` | 일반 노출 또는 삭제된 댓글/대댓글 |
-| `groups.status` | `ACTIVE`, `INACTIVE`, `DELETED` | 활성, 비활성, 삭제 그룹 |
 | `group_members.role` | `LEADER`, `MEMBER` | 그룹장 또는 일반 그룹원 |
-| `schedules.status` | `ACTIVE`, `DELETED` | 활성 또는 삭제된 일정 |
 | `schedules.type` | `1`, `2`, `3`, `4`, `5` | 수업, 과제, 시험, 스터디, 기타 |
 | `report.target_type` | `POST`, `COMMENT` | 신고 대상 유형 |
 | `report.reason_type` | `1`, `2`, `3`, `4` | 부적절한 내용, 광고/도배, 저작권 침해, 기타 |
@@ -78,8 +74,10 @@
 - 게시글 상세 조회 시 조회수를 증가시킨다.
 - 게시글 목록은 페이지 번호 기반이며 기본 정렬은 작성일 최신순이다.
 - 제목/내용 검색어, 작성자, 주제 필터는 한 번에 하나만 사용한다.
-- 파일은 직접 업로드 방식이다. DB에는 `/uploads/posts/{post_id}/...` 형식의 `file_url`만 저장한다.
+- 파일은 직접 업로드 방식이다. DB에는 `/uploads/posts/{post_id}/{UUID}` 형식의 `file_url`만 저장한다.
 - 게시글 수정 시 새 파일이 업로드되면 기존 파일 목록을 전체 교체하고, 새 파일이 없으면 유지한다.
+- 게시글 삭제 시 게시글 row를 삭제하며, 추천, 댓글/대댓글, 첨부파일, 알림은 FK cascade 정책에 따라 함께 삭제된다.
+- 삭제된 게시글 또는 함께 삭제된 댓글/대댓글을 대상으로 생성된 신고 이력은 유지하며, 관리자 신고 목록에서는 `삭제된 대상`으로 표시한다.
 
 ### Anonymous and Deleted Author Display
 
@@ -97,6 +95,8 @@
 - 대댓글은 일반 댓글에만 작성할 수 있고, 대댓글에는 다시 대댓글을 작성할 수 없다.
 - 댓글/대댓글은 작성자 본인만 수정/삭제할 수 있다.
 - 댓글/대댓글 수정 또는 삭제 후 게시글 상세 화면 전체를 갱신한다.
+- 댓글 삭제 시 해당 댓글의 대댓글과 알림은 FK cascade 정책에 따라 함께 삭제된다.
+- 삭제된 댓글 또는 대댓글을 대상으로 생성된 신고 이력은 유지하며, 관리자 신고 목록에서는 `삭제된 대상`으로 표시한다.
 
 ### Notification
 
@@ -120,13 +120,12 @@
 
 ### Group
 
-- 그룹 생성자는 `groups.creator_id`로 기록한다.
-- 현재 그룹장은 `group_members.role = LEADER`로 판단한다.
-- 그룹 생성자는 생성과 동시에 `group_members`에 `LEADER`로 등록된다.
+- 현재 그룹장은 `groups.leader_id`로 기록한다.
+- 그룹 생성자는 생성과 동시에 `groups.leader_id`와 `group_members.role = LEADER`로 등록된다.
 - 그룹 가입은 `group_code` 입력 방식이다.
 - `group_link`는 `group_code`와 같은 값이며 별도 초대 URL이 아니다.
-- 그룹장 탈퇴 시 탈퇴 회원을 제외하고 가장 먼저 가입한 그룹원에게 `LEADER`를 위임한다.
-- 유일한 그룹원이 탈퇴하면 그룹은 `INACTIVE`와 `deleted_at` 기준으로 비활성화된다.
+- 그룹장 탈퇴 시 탈퇴 회원을 제외하고 가장 먼저 가입한 그룹원에게 `LEADER`를 위임하고 `groups.leader_id`를 갱신한다.
+- 유일한 그룹원이 탈퇴하면 해당 그룹은 즉시 삭제된다.
 
 ### Schedule
 
@@ -134,11 +133,12 @@
 - 그룹 일정은 해당 그룹원만 조회/등록/수정/삭제할 수 있다.
 - 모든 그룹원은 자신이 속한 그룹 캘린더의 그룹 일정을 자유롭게 변경할 수 있다.
 - 종료 일시는 시작 일시보다 빠를 수 없다.
+- 개인 일정과 그룹 일정 삭제는 `schedules` row 삭제로 처리한다.
 
 ## 5. Assumptions
 
-- 비밀번호 해시 알고리즘, 세션 저장소, 파일명 충돌 회피 방식은 구현 세부사항으로 둔다.
-- 삭제된 게시글/댓글/일정의 일반 조회 제외는 `status` 기준으로 처리한다.
+- 비밀번호 해시 알고리즘과 세션 저장소는 구현 세부사항으로 둔다.
+- `post`, `comments`, `groups`, `schedules`에는 원본 물리 스키마 기준 별도 삭제 상태 컬럼을 두지 않는다.
 
 ## 6. Open Questions
 

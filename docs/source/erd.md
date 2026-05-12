@@ -35,7 +35,7 @@ erDiagram
     users ||--o{ report : "처리"
     post ||--o{ report : "신고대상게시글"
     comments ||--o{ report : "신고대상댓글"
-    users ||--o{ groups : "생성"
+    users ||--o{ groups : "groups.leader_id = 현재 그룹장"
     users ||--o{ group_members : "가입"
     groups ||--o{ group_members : "멤버보유"
     users ||--o{ schedules : "일정작성"
@@ -64,8 +64,6 @@ erDiagram
         CLOB content
         TIMESTAMP created_at
         TIMESTAMP updated_at
-        TIMESTAMP deleted_at
-        VARCHAR status
         INTEGER view_count
         VARCHAR main_category
         VARCHAR sub_category
@@ -88,8 +86,6 @@ erDiagram
         BOOLEAN is_anonymous
         TIMESTAMP created_at
         TIMESTAMP updated_at
-        TIMESTAMP deleted_at
-        VARCHAR status
     }
 
     report {
@@ -108,10 +104,8 @@ erDiagram
         INTEGER id PK
         VARCHAR group_code UK
         VARCHAR name
-        INTEGER creator_id FK
+        INTEGER leader_id FK
         TIMESTAMP created_at
-        TIMESTAMP deleted_at
-        VARCHAR status
     }
 
     group_members {
@@ -132,8 +126,6 @@ erDiagram
         INTEGER type
         TIMESTAMP created_at
         TIMESTAMP updated_at
-        TIMESTAMP deleted_at
-        VARCHAR status
     }
 
     file {
@@ -182,8 +174,6 @@ erDiagram
 | `content` | CLOB |  | NULL | 게시글 본문 |
 | `created_at` | TIMESTAMP | default current timestamp | NN | 작성 일시 |
 | `updated_at` | TIMESTAMP |  | NULL | 수정 일시. NULL이 아니면 수정된 게시글로 판단 |
-| `deleted_at` | TIMESTAMP |  | NULL | 삭제 일시 |
-| `status` | VARCHAR(20) | default `ACTIVE`, allowed `ACTIVE`, `DELETED` | NN | 게시글 상태 |
 | `view_count` | INTEGER | default 0, `>= 0` | NN | 조회수 |
 | `main_category` | VARCHAR(100) |  | NN | 대주제, 학과 |
 | `sub_category` | VARCHAR(100) |  | NN | 소주제, 과목 |
@@ -214,8 +204,6 @@ erDiagram
 | `is_anonymous` | BOOLEAN | default false | NN | 익명 작성 여부 |
 | `created_at` | TIMESTAMP | default current timestamp | NN | 작성 일시 |
 | `updated_at` | TIMESTAMP |  | NULL | 수정 일시. NULL이 아니면 수정된 댓글로 판단 |
-| `deleted_at` | TIMESTAMP |  | NULL | 삭제 일시 |
-| `status` | VARCHAR(20) | default `ACTIVE`, allowed `ACTIVE`, `DELETED` | NN | 댓글 상태 |
 
 ### 5-5. report
 
@@ -233,21 +221,19 @@ erDiagram
 | `processed_by` | INTEGER | FK → `users.id` | NULL | 신고를 처리한 관리자 회원 |
 | `processed_at` | TIMESTAMP |  | NULL | 신고 처리 시각 |
 
-`target_id`는 다형 대상 참조이므로 단일 FK로 표현하지 않는다. 실제 대상 존재 여부와 `target_type`에 맞는 대상 테이블 검증은 구현 단계에서 서비스 로직 또는 트리거로 처리한다. 신고 처리 API는 `status`, `processed_by`, `processed_at`만 변경하며 신고 대상 게시글 또는 댓글 삭제를 자동 수행하지 않는다.
+`target_id`는 다형 대상 참조이므로 단일 FK로 표현하지 않는다. 신고 생성 시점의 실제 대상 존재 여부와 `target_type`에 맞는 대상 테이블 검증은 구현 단계에서 서비스 로직 또는 트리거로 처리한다. 신고 대상 게시글 또는 댓글이 이후 hard delete되어도 `report` 이력은 유지하며, 관리자 신고 목록에서는 해당 신고 대상을 `삭제된 대상`으로 표시한다. 신고 처리 API는 `status`, `processed_by`, `processed_at`만 변경하며 신고 대상 게시글 또는 댓글 삭제를 자동 수행하지 않는다.
 
 ### 5-6. groups
 
-그룹 정보를 저장한다. 유일한 그룹원이 탈퇴하는 경우 그룹은 `status = INACTIVE`, `deleted_at` 기준으로 비활성화 및 삭제 대기 상태가 될 수 있다.
+그룹 정보를 저장한다. `leader_id`는 현재 그룹장 회원을 가리킨다.
 
 | 컬럼 | 타입 | 키/제약 | NULL | 설명 |
 |---|---:|---|---|---|
 | `id` | INTEGER | PK, identity | NN | 그룹 식별자 |
 | `group_code` | VARCHAR(255) | UK | NN | 그룹 가입 코드. 화면에서 `group_link`라고 표현하는 값과 동일 |
 | `name` | VARCHAR(100) |  | NN | 그룹명 |
-| `creator_id` | INTEGER | FK → `users.id` | NN | 그룹 생성자 |
+| `leader_id` | INTEGER | FK → `users.id` | NN | 현재 그룹장 |
 | `created_at` | TIMESTAMP | default current timestamp | NN | 생성 일시 |
-| `deleted_at` | TIMESTAMP |  | NULL | 그룹 삭제 또는 비활성화 일시 |
-| `status` | VARCHAR(20) | default `ACTIVE`, allowed `ACTIVE`, `INACTIVE`, `DELETED` | NN | 그룹 상태 |
 
 ### 5-7. group_members
 
@@ -276,12 +262,10 @@ erDiagram
 | `type` | INTEGER | allowed `1`, `2`, `3`, `4`, `5` | NN | 일정 종류. 1: 수업, 2: 과제, 3: 시험, 4: 스터디, 5: 기타 |
 | `created_at` | TIMESTAMP | default current timestamp | NN | 생성 일시 |
 | `updated_at` | TIMESTAMP |  | NULL | 수정 일시 |
-| `deleted_at` | TIMESTAMP |  | NULL | 삭제 일시 |
-| `status` | VARCHAR(20) | default `ACTIVE`, allowed `ACTIVE`, `DELETED` | NN | 일정 상태 |
 
 ### 5-9. file
 
-게시글 첨부파일을 저장한다. 논리 스키마에 따라 게시글 참조 컬럼명은 `id`를 사용한다. 실제 파일은 `/uploads/posts/{post_id}/...` 형식의 서버 로컬 경로에 저장하고 DB에는 `file_url`만 저장한다.
+게시글 첨부파일을 저장한다. 논리 스키마에 따라 게시글 참조 컬럼명은 `id`를 사용한다. 실제 파일은 `/uploads/posts/{post_id}/{UUID}` 형식의 서버 로컬 경로에 저장하고 DB에는 `file_url`만 저장한다.
 
 | 컬럼 | 타입 | 키/제약 | NULL | 설명 |
 |---|---:|---|---|---|
@@ -314,8 +298,8 @@ erDiagram
 | `comments.id` → `comments.parent_comment` | 1:N | 일반 댓글 하나는 여러 대댓글의 부모가 될 수 있다. |
 | `users.id` → `report.reporter_id` | 1:N | 회원 한 명은 여러 게시글 또는 댓글을 신고할 수 있다. |
 | `users.id` → `report.processed_by` | 1:N | 관리자 한 명은 여러 신고를 처리할 수 있다. 미처리 신고의 `processed_by`는 NULL이다. |
-| `report.target_type`, `report.target_id` → 신고 대상 | N:1 | 신고 대상은 `target_type`에 따라 `post.id` 또는 `comments.id`를 의미한다. |
-| `users.id` → `groups.creator_id` | 1:N | 회원 한 명은 여러 그룹을 생성할 수 있다. |
+| `report.target_type`, `report.target_id` → 신고 대상 | N:1 | 신고 대상은 `target_type`에 따라 `post.id` 또는 `comments.id`를 의미한다. 신고 대상이 hard delete된 경우 `report` 이력은 유지하고 화면에는 `삭제된 대상`으로 표시한다. |
+| `users.id` → `groups.leader_id` | 1:N | 회원 한 명은 여러 그룹의 현재 그룹장이 될 수 있다. |
 | `groups.id` → `group_members.group_id` | 1:N | 그룹 하나는 여러 회원을 가질 수 있다. |
 | `users.id` → `group_members.user_id` | 1:N | 회원 한 명은 여러 그룹에 가입할 수 있다. |
 | `users.id` → `schedules.user_id` | 1:N | 회원 한 명은 여러 일정을 작성하거나 소유할 수 있다. |
@@ -330,8 +314,6 @@ erDiagram
 - `users.login_id`, `users.email_address`는 중복될 수 없다. 탈퇴 회원의 NULL 값은 DBMS의 UNIQUE NULL 처리 정책을 따른다.
 - `users.status`는 `ACTIVE`, `DELETED` 중 하나다.
 - `users.role`은 `USER`, `ADMIN` 중 하나다.
-- `post.status`, `comments.status`, `schedules.status`는 `ACTIVE`, `DELETED` 중 하나다.
-- `groups.status`는 `ACTIVE`, `INACTIVE`, `DELETED` 중 하나다.
 - `likes`는 `UNIQUE(user_id, post_id)`로 회원당 게시글 추천을 한 번만 유지하도록 제한한다.
 - `comments.parent_comment`가 NULL이면 일반 댓글, 값이 있으면 대댓글이다.
 - 대댓글에는 다시 대댓글을 작성할 수 없다는 규칙은 단순 ERD 관계만으로 표현하기 어려우므로 구현 단계에서 서비스 로직 또는 트리거로 검증해야 한다.
@@ -341,7 +323,7 @@ erDiagram
 - `report.target_type`은 `POST`, `COMMENT` 중 하나다.
 - `report.reason_type`은 `1`, `2`, `3`, `4` 중 하나다.
 - `report.status`는 `PENDING`, `PROCESSED` 중 하나다.
-- `report.target_id`는 `target_type`에 따라 `post.id` 또는 `comments.id`를 의미하며, `COMMENT`는 댓글과 대댓글을 모두 포함한다. 실제 대상 존재 여부는 구현 단계에서 서비스 로직 또는 트리거로 검증해야 한다.
+- `report.target_id`는 `target_type`에 따라 `post.id` 또는 `comments.id`를 의미하며, `COMMENT`는 댓글과 대댓글을 모두 포함한다. 신고 생성 시 실제 대상 존재 여부는 구현 단계에서 서비스 로직 또는 트리거로 검증해야 한다. 신고 대상이 이후 hard delete된 경우에도 `report` 이력은 유지한다.
 - 탈퇴 회원 작성물은 삭제하지 않고 유지하며, 화면에서는 `탈퇴한 유저`로 표시한다.
 - `group_members`는 `PRIMARY KEY(group_id, user_id)`로 한 회원이 같은 그룹에 중복 가입되는 것을 방지한다.
 - `group_members.role`은 `LEADER`, `MEMBER` 중 하나다.
@@ -357,6 +339,6 @@ erDiagram
 - `notification.commented_id`는 요구사항과 물리 스키마에 따라 NULL을 허용한다. 댓글 알림에서는 NULL, 대댓글 알림에서는 부모 댓글 id를 저장한다.
 - `users.login_id`, `users.password`, `users.name`, `users.email_address`는 회원 가입 시 필수 입력값이지만, 탈퇴 처리 후 개인정보 삭제 또는 비식별화를 위해 ERD에서는 NULL 가능 컬럼으로 표현한다.
 - `post.updated_at`, `comments.updated_at`은 수정 여부 판단 기준으로 사용한다.
-- 신고 이력은 별도 `report` 테이블에 저장한다. 관리자 신고 처리 결과는 `report.status`, `processed_by`, `processed_at`으로만 저장하며, 신고 처리 자체가 게시글/댓글 삭제를 자동 수행하지 않는다.
-- `groups.creator_id`는 최초 생성자를 기록하고, 현재 그룹장은 `group_members.role = LEADER`로 판단한다.
+- 신고 이력은 별도 `report` 테이블에 저장한다. 관리자 신고 처리 결과는 `report.status`, `processed_by`, `processed_at`으로만 저장하며, 신고 처리 자체가 게시글/댓글 삭제를 자동 수행하지 않는다. 신고 대상 게시글 또는 댓글이 삭제되어도 `report` 이력은 유지하고 관리자 화면에는 `삭제된 대상`으로 표시한다.
+- `groups.leader_id`는 현재 그룹장을 기록한다.
 - `file` 테이블은 논리 스키마의 `file(id, file_url)` 정의에 맞춰 게시글 참조 컬럼명을 `id`로 사용한다.

@@ -46,7 +46,7 @@
 | USER-002 | `400` 수정 필드 없음/동일값/`current_password` 누락, `401` 인증되지 않음, `403` `current_password` 불일치, `409` 이메일 중복 |
 | USER-003 | `401` 인증되지 않음 |
 | POST-001 | `400` 둘 이상의 필터 종류, `400` 페이지 파라미터 오류 |
-| POST-002 | `404` 게시글 없음 또는 삭제됨 |
+| POST-002 | `404` 게시글 없음 |
 | POST-003 | `400` 필수 누락, `400` 파일 업로드 실패 |
 | POST-004 | `400` 수정 필드 없음, `403` 작성자 아님, `404` 게시글 없음 |
 | POST-005 | `403` 작성자 아님, `404` 게시글 없음 |
@@ -61,15 +61,15 @@
 | REPORT-002 | `403` 관리자 권한 없음 |
 | REPORT-003 | `400` 유효하지 않은 `status`, `403` 관리자 권한 없음, `404` 신고 없음 |
 | NOTI-001 | `403` 다른 회원 알림 접근 |
-| CAL-001 | `401` 인증 없음, `403` 다른 회원 일정 접근 |
+| CAL-001 | `400` 날짜 형식 오류, `400` `end_at < start_at`, `401` 인증 없음, `403` 다른 회원 일정 접근 |
 | CAL-002 | `400` 필수 누락, `400` `type`이 1..5 밖, `400` 종료가 시작보다 빠름 |
 | CAL-003 | `400` `type`이 1..5 밖, `400` 종료가 시작보다 빠름, `403` 다른 회원 일정 접근, `404` 일정 없음 |
 | CAL-004 | `403` 다른 회원 일정 접근, `404` 일정 없음 |
 | GROUP-001 | `401` 인증 없음 |
 | GROUP-002 | `400` 그룹명 누락 |
 | GROUP-003 | `404` 존재하지 않거나 유효하지 않은 그룹 코드, `409` 이미 가입 |
-| GROUP-004 | `403` 그룹원이 아님, `404` 그룹 없음 또는 비활성/삭제 |
-| GCAL-001 | `403` 그룹원이 아님, `404` 그룹 없음 |
+| GROUP-004 | `403` 그룹원이 아님, `404` 그룹 없음 |
+| GCAL-001 | `400` 날짜 형식 오류, `400` `end_at < start_at`, `403` 그룹원이 아님, `404` 그룹 없음 |
 | GCAL-002 | `400` 필수 누락, `400` `type`이 1..5 밖, `400` 종료가 시작보다 빠름, `403` 그룹원이 아님, `404` 그룹 없음 |
 | GCAL-003 | `400` `type`이 1..5 밖, `400` 종료가 시작보다 빠름, `403` 그룹원이 아님, `404` 그룹 또는 일정 없음 |
 | GCAL-004 | `403` 그룹원이 아님, `404` 그룹 또는 일정 없음 |
@@ -216,7 +216,7 @@ Related data:
 
 - Given 탈퇴 회원의 개인 일정이 있다
 - When 탈퇴 처리가 실행된다
-- Then 해당 개인 일정은 `status = DELETED`, `deleted_at = now()`로 전환된다
+- Then 해당 개인 일정은 즉시 삭제된다
 - And 일반 개인 일정 조회에 노출되지 않는다
 
 - Given 탈퇴 회원이 그룹에 가입되어 있다
@@ -230,7 +230,7 @@ Related data:
 
 - Given 탈퇴 회원이 유일한 그룹원이다
 - When 탈퇴 처리가 실행된다
-- Then 그룹은 `INACTIVE`와 `deleted_at` 기준으로 비활성화된다
+- Then 해당 그룹은 즉시 삭제된다
 
 ## 3. 알림
 
@@ -265,9 +265,13 @@ Authorization failure:
 
 Normal:
 
-- Given ACTIVE 게시글이 있다
+- Given 존재하는 게시글이 있다
 - When `GET /api/posts`를 호출한다
 - Then 작성일 최신순으로 페이지 응답을 반환한다
+
+- Given `page` 파라미터가 전달되지 않는다
+- When `GET /api/posts`를 호출한다
+- Then `page = 1` 기준으로 목록을 반환한다
 
 Filtering:
 
@@ -295,7 +299,7 @@ Validation failure:
 
 ### POST-002. 게시글 상세 조회
 
-- Given ACTIVE 게시글이 있다
+- Given 존재하는 게시글이 있다
 - When `GET /api/posts/{post_id}`를 호출한다
 - Then Post를 반환한다
 - And 조회수가 증가한다
@@ -314,7 +318,7 @@ Anonymous display:
 - When 해당 작성물을 조회한다
 - Then 작성자명은 `익명_숫자`가 아니라 `탈퇴한 유저`로 표시된다
 
-- Given 게시글이 없거나 삭제되었다
+- Given 게시글이 없다
 - When 상세 조회를 요청한다
 - Then `404`를 반환한다
 
@@ -325,7 +329,7 @@ Normal:
 - Given 인증된 회원이 대주제, 소주제, 제목, 익명 여부를 입력한다
 - When `POST /api/posts`를 multipart로 호출한다
 - Then `201`과 Post를 반환한다
-- And 업로드 파일은 `/uploads/posts/{post_id}/...` 로컬 경로에 저장된다
+- And 업로드 파일은 `/uploads/posts/{post_id}/{UUID}` 로컬 경로에 저장된다
 - And DB에는 `file_url`만 저장된다
 
 Validation failures:
@@ -358,7 +362,8 @@ Normal:
 - Given 게시글 작성자가 삭제를 요청한다
 - When `DELETE /api/posts/{post_id}`를 호출한다
 - Then `204`를 반환한다
-- And `post.status = DELETED`, `deleted_at = now()`가 저장된다
+- And 해당 게시글의 추천, 댓글/대댓글, 첨부파일, 알림은 FK cascade 정책에 따라 함께 삭제된다
+- And 해당 게시글 또는 함께 삭제된 댓글/대댓글을 대상으로 생성된 신고 이력은 유지된다
 
 Failures:
 
@@ -400,9 +405,9 @@ Failures:
 
 ### COMMENT-001. 댓글 목록 조회
 
-- Given 게시글에 ACTIVE 댓글과 대댓글이 있다
+- Given 게시글에 댓글과 대댓글이 있다
 - When `GET /api/posts/{post_id}/comments`를 호출한다
-- Then ACTIVE 댓글과 대댓글만 반환한다
+- Then 댓글과 대댓글을 반환한다
 - And 익명 작성자는 `익명_숫자`, 탈퇴 작성자는 `탈퇴한 유저`로 표시된다
 
 - Given 게시글이 없다
@@ -467,7 +472,8 @@ Failures:
 - Given 댓글 작성자가 삭제한다
 - When `DELETE /api/comments/{comment_id}`를 호출한다
 - Then `204`를 반환한다
-- And `comments.status = DELETED`, `deleted_at = now()`가 저장된다
+- And 해당 댓글의 대댓글과 알림은 FK cascade 정책에 따라 함께 삭제된다
+- And 해당 댓글 또는 함께 삭제된 대댓글을 대상으로 생성된 신고 이력은 유지된다
 
 - Given 작성자가 아닌 회원이 수정 또는 삭제한다
 - When 요청을 처리한다
@@ -517,6 +523,10 @@ Failures:
 - Then 신고 목록을 반환한다
 - And 신고 처리 상태, 처리자, 처리 시각을 포함한다
 
+- Given 신고 대상 게시글 또는 댓글이 삭제되어 대상 row를 조회할 수 없다
+- When ADMIN 회원이 `GET /api/admin/reports`를 호출한다
+- Then 해당 신고의 `target_display_name`은 `삭제된 대상`으로 표시된다
+
 - Given ADMIN 회원이 신고 처리를 요청한다
 - When `PATCH /api/admin/reports/{report_id}`에 `status = PROCESSED`를 전달한다
 - Then `200`과 처리된 Report를 반환한다
@@ -541,7 +551,31 @@ Failures:
 
 - Given 인증된 회원이 있다
 - When `GET /api/me/schedules`를 호출한다
-- Then 본인의 ACTIVE 개인 일정만 반환한다
+- Then 본인의 개인 일정만 반환한다
+
+- Given `start_at`과 `end_at`이 모두 없다
+- When `GET /api/me/schedules`를 호출한다
+- Then 본인의 전체 개인 일정을 반환한다
+
+- Given `start_at`과 `end_at`이 모두 있고 개인 일정 기간과 조회 기간이 겹친다
+- When `GET /api/me/schedules?start_at=...&end_at=...`를 호출한다
+- Then `schedules.start_at <= end_at AND schedules.end_at >= start_at`인 본인 개인 일정을 반환한다
+
+- Given `start_at`만 전달된다
+- When 개인 일정 목록을 조회한다
+- Then `schedules.end_at >= start_at`인 본인 개인 일정을 반환한다
+
+- Given `end_at`만 전달된다
+- When 개인 일정 목록을 조회한다
+- Then `schedules.start_at <= end_at`인 본인 개인 일정을 반환한다
+
+- Given `start_at` 또는 `end_at`이 ISO-8601 문자열이 아니다
+- When 개인 일정 목록을 조회한다
+- Then `400`을 반환한다
+
+- Given `start_at`과 `end_at`이 모두 있고 `end_at`이 `start_at`보다 빠르다
+- When 개인 일정 목록을 조회한다
+- Then `400`을 반환한다
 
 - Given 일정 제목, 시작/종료 일시, `type`이 1..5 중 하나로 유효하다
 - When `POST /api/me/schedules`를 호출한다
@@ -563,7 +597,7 @@ Failures:
 - Given 본인 개인 일정이 있다
 - When `DELETE /api/me/schedules/{schedule_id}`를 호출한다
 - Then `204`를 반환한다
-- And `status = DELETED`, `deleted_at = now()`가 저장된다
+- And 해당 개인 일정은 삭제된다
 
 - Given 종료 일시가 시작 일시보다 빠르다
 - When 일정 저장을 요청한다
@@ -583,12 +617,12 @@ Failures:
 
 - Given 인증된 회원이 있다
 - When `GET /api/groups`를 호출한다
-- Then 본인이 속한 ACTIVE 그룹만 반환한다
+- Then 본인이 속한 그룹만 반환한다
 
 - Given 그룹명이 있다
 - When `POST /api/groups`를 호출한다
 - Then `201`을 반환한다
-- And 그룹 생성자는 `group_members`에 `LEADER`로 자동 등록된다
+- And 그룹 생성자는 `groups.leader_id`와 `group_members.role = LEADER`로 자동 등록된다
 - And 생성된 `group_code`가 반환된다
 
 - Given 유효한 그룹 가입 코드가 있다
@@ -611,7 +645,7 @@ Failures:
 - When 그룹 상세 조회를 요청한다
 - Then `403`을 반환한다
 
-- Given 그룹이 없거나 비활성/삭제 상태다
+- Given 그룹이 없다
 - When 그룹 상세 조회를 요청한다
 - Then `404`를 반환한다
 
@@ -619,7 +653,31 @@ Failures:
 
 - Given 그룹원이 있다
 - When `GET /api/groups/{group_id}/schedules`를 호출한다
-- Then 해당 그룹의 ACTIVE 그룹 일정만 반환한다
+- Then 해당 그룹의 그룹 일정을 반환한다
+
+- Given `start_at`과 `end_at`이 모두 없다
+- When `GET /api/groups/{group_id}/schedules`를 호출한다
+- Then 해당 그룹의 전체 그룹 일정을 반환한다
+
+- Given `start_at`과 `end_at`이 모두 있고 그룹 일정 기간과 조회 기간이 겹친다
+- When `GET /api/groups/{group_id}/schedules?start_at=...&end_at=...`를 호출한다
+- Then `schedules.start_at <= end_at AND schedules.end_at >= start_at`인 해당 그룹 일정을 반환한다
+
+- Given `start_at`만 전달된다
+- When 그룹 일정 목록을 조회한다
+- Then `schedules.end_at >= start_at`인 해당 그룹 일정을 반환한다
+
+- Given `end_at`만 전달된다
+- When 그룹 일정 목록을 조회한다
+- Then `schedules.start_at <= end_at`인 해당 그룹 일정을 반환한다
+
+- Given `start_at` 또는 `end_at`이 ISO-8601 문자열이 아니다
+- When 그룹 일정 목록을 조회한다
+- Then `400`을 반환한다
+
+- Given `start_at`과 `end_at`이 모두 있고 `end_at`이 `start_at`보다 빠르다
+- When 그룹 일정 목록을 조회한다
+- Then `400`을 반환한다
 
 - Given 그룹원이 `title`, `start_at`, `end_at`, `type`이 1..5 중 하나인 유효한 일정 정보를 입력한다
 - When `POST /api/groups/{group_id}/schedules`를 호출한다
@@ -644,6 +702,7 @@ Failures:
 - Given 그룹원이 그룹 일정을 삭제한다
 - When `DELETE /api/groups/{group_id}/schedules/{schedule_id}`를 호출한다
 - Then `204`를 반환한다
+- And 해당 그룹 일정은 삭제된다
 
 - Given 그룹원이 아닌 회원이다
 - When 그룹 일정 API를 호출한다

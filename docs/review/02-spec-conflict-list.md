@@ -1,53 +1,82 @@
-# Spec Conflict List
+# 02. Spec Conflict List
 
-검토일: 2026-05-11
-검토 범위: `docs/source/user-flow.md`, `docs/source/requirements.md`, `docs/source/screen-design.md`, `docs/source/api-spec.md`, `docs/source/erd.md`, `docs/source/logical-schema.md`, `docs/source/physical-schema.md`
+검증일: 2026-05-12
+
+검증 대상:
+
+- `docs/source/user-flow.md`
+- `docs/source/requirements.md`
+- `docs/source/screen-design.md`
+- `docs/source/api-spec.md`
+- `docs/source/erd.md`
+- `docs/source/logical-schema.md`
+- `docs/source/physical-schema.md`
+- `docs/source/dbml.md`
 
 구현 가능 여부: **PASS**
 
-## 1. 현재 미해결 직접 충돌
+최종 재확인: 2026-05-12 기준 원본 문서 간 직접 충돌은 추가로 발견되지 않았다.
 
-현재 검토 기준에서 **문서 간 직접 충돌은 발견되지 않았다.**
+## 1. 현재 미해결 직접 충돌
 
 | ID | Severity | Related document | Problem | Why it matters | Suggested fix | Required user decision |
 |---|---|---|---|---|---|---|
-| 없음 | - | - | 미해결 직접 충돌 없음 | - | - | - |
+| 없음 | - | - | 현재 검증 대상 문서 간 직접 충돌 없음 | - | - | 없음 |
 
-## 2. 이전 충돌 및 미결정 해소 상태
+## 2. 이전 충돌 해소 상태
 
-| 이전 항목 | 현재 상태 | 반영 위치 |
-|---|---|---|
-| 공통 에러 응답 body 형식 미정 | 해결 | `requirements.md` 0-1, `api-spec.md` 공통 규칙/공통 상태 코드, `screen-design.md` 공통 화면 규칙 |
-| 파일 업로드 저장 경로/DB 저장 값/수정 정책 및 메타데이터 정책 | 해결 | `requirements.md` 3-1, `api-spec.md` P-03/P-04, `user-flow.md` UF-09/UF-10, `screen-design.md` SC-10, 스키마 문서의 `file` 설명 |
-| 관리자 권한 부여 방식 미정 | 해결 | `requirements.md` 1-5, `api-spec.md` Authorization/A-01, `logical-schema.md`, `erd.md`, `physical-schema.md`의 `users.role` 설명 |
-| 관리자 신고 처리 결과 저장 여부 미정 | 해결 | `requirements.md` 3-5, `api-spec.md` R-02/R-03, `user-flow.md` UF-18, `screen-design.md` SC-18, `report` 스키마 |
-| 그룹 가입 코드 공유 UX 미정 | 해결 | `requirements.md` 6-2, `api-spec.md` G-02/G-03, `user-flow.md` UF-16, `screen-design.md` SC-14/SC-15, `groups.group_code` 설명 |
+| 이전 ID | 이전 Severity | 현재 상태 | 확인 근거 |
+|---|---|---|---|
+| C-M01 | MAJOR | 해결 | `docs/source/erd.md` Mermaid의 `users ||--o{ groups` 관계 라벨이 `groups.leader_id = 현재 그룹장`으로 수정되었다. requirements, logical schema, physical schema의 현재 그룹장 모델과 일치한다. |
+| C-Q01 | QUESTION | 해결 | requirements, user-flow, screen-design, api-spec, erd, logical-schema, physical-schema, dbml에 게시글/댓글 hard delete 이후 기존 report 이력 유지 및 관리자 신고 목록의 `삭제된 대상` 표시 정책이 반영되었다. |
+| 공통 오류 응답 body 형식 미정 | MAJOR | 해결 유지 | 요구사항과 API에서 실패 응답 body는 `code`, `message` 필수, `details` 선택으로 정리되어 있다. |
+| 파일 업로드 저장 경로/DB 저장값 불일치 | MAJOR | 해결 유지 | `/uploads/posts/{post_id}/{UUID}`와 `file_url` 저장 정책으로 통일되어 있다. |
+| 관리자 권한 부여 방식 미정 | QUESTION | 해결 유지 | `users.role` 기본값은 `USER`, ADMIN은 DB seed 또는 운영자 DB 변경으로만 부여한다. |
+| 관리자 신고 처리 결과 저장 방식 미정 | QUESTION | 해결 유지 | 신고 처리는 `report.status`, `processed_by`, `processed_at`만 변경한다. |
+| 그룹 가입 코드 공유 UX 미정 | QUESTION | 해결 유지 | 별도 URL 없이 `group_code`를 화면에 표시하고 사용자가 코드를 입력해 가입한다. |
+| 일정/그룹 삭제 대기 상태 표현 | BLOCKER | 해결 유지 | 개인 일정과 유일 그룹원 그룹은 탈퇴 시 즉시 삭제하며, `groups.status`, `schedules.status`는 사용하지 않는다. |
 
 ## 3. 신규 충돌 검토
 
-| 검토 영역 | 결과 |
-|---|---|
-| Requirement ↔ User Flow | 일치. 신고, 파일 업로드, 그룹 코드, 관리자 처리 흐름이 요구사항과 맞다. |
-| Requirement ↔ Screen Design | 일치. 화면 실패 메시지, 신고 처리, 파일 정책, 그룹 코드 표시가 요구사항과 맞다. |
-| Requirement ↔ API | 일치. 공통 에러 응답, 파일 업로드, 관리자 신고 처리 API, ADMIN 부여 방식이 API에 반영되었다. |
-| API ↔ DB Schema | 일치. `report.status`, `processed_by`, `processed_at`이 API와 스키마에 모두 존재한다. |
-| ERD ↔ Logical Schema | 일치. 신고 처리 이력과 파일/그룹 정책 설명이 맞다. |
-| Logical Schema ↔ Physical Schema | 일치. 신고 처리 컬럼, FK, 상태값, 파일 테이블 구성이 맞다. |
-| User Flow ↔ API | 일치. 유저 플로우의 처리 흐름과 API 엔드포인트가 맞다. |
-| Screen Design ↔ API | 일치. `SC-18`은 `GET /api/admin/reports`, `PATCH /api/admin/reports/{report_id}`와 연결된다. |
+### Requirement ↔ User Flow
+
+- 현재 그룹장 모델, 개인 일정 즉시 삭제, 유일 그룹원 그룹 즉시 삭제, 파일 경로, 신고 대상 삭제 후 report 유지 정책이 일치한다.
+
+### Requirement ↔ Screen Design
+
+- 관리자 신고 목록은 삭제된 신고 대상을 `삭제된 대상`으로 표시한다.
+- 신고 처리는 상태만 변경하며 게시글/댓글 삭제를 자동 수행하지 않는다.
+
+### Requirement ↔ API
+
+- 신고 생성 시 대상 존재 검증, 대상 삭제 후 report 이력 유지, `target_display_name` 반환 정책이 일치한다.
+- 게시글/댓글 삭제 API는 대상 삭제와 report 이력 유지 정책을 함께 명시한다.
+
+### API ↔ DB Schema
+
+- `report.target_id`는 단일 FK 없이 다형 참조로 유지한다.
+- 생성 시점 대상 존재 검증은 서비스 로직 또는 트리거에서 수행하며, 대상 hard delete 이후에도 report row는 유지한다.
+
+### ERD ↔ Logical ↔ Physical ↔ DBML
+
+- `groups.leader_id`는 현재 그룹장 기준으로 일치한다.
+- ERD Mermaid 라벨도 `groups.leader_id = 현재 그룹장`으로 정리되었다.
+- report 다형 참조와 삭제된 대상 표시 정책이 일치한다.
+
+### User Flow ↔ API / Screen ↔ API
+
+- 신고 생성, 관리자 신고 목록 조회, 신고 처리 흐름이 API와 일치한다.
+- 삭제된 신고 대상 표시값은 `삭제된 대상`으로 통일되어 있다.
 
 ## 4. 충돌 아님으로 확인한 항목
 
-- `details`는 공통 에러 응답의 선택값이므로 기본 응답에서 제외되어도 충돌이 아니다.
-- 파일 크기와 확장자 제한은 최소 구현 범위에서 별도 요구사항으로 두지 않기로 확정되어, 스키마에 파일 메타데이터 컬럼이 없는 것은 충돌이 아니다.
-- 신고 처리는 게시글/댓글 삭제를 자동 수행하지 않고 `report` 상태만 변경하므로, 게시글/댓글 테이블에 신고 처리 컬럼이 없는 것은 충돌이 아니다.
-- `group_link`는 별도 URL이 아니라 `group_code`와 같은 값으로 정리되어, 별도 링크 컬럼이 없는 것은 충돌이 아니다.
-- ADMIN 부여 API가 없는 것은 요구사항상 제외로 확정되어 충돌이 아니다.
+- `post`, `comments`, `groups`, `schedules`에 별도 `status`/`deleted_at` 컬럼이 없는 것은 최신 hard delete 정책과 충돌하지 않는다.
+- 탈퇴 회원 row를 유지하고 `users.status`, `users.deleted_at`으로 처리하는 것은 회원 개인정보 삭제 대기 정책과 일치한다.
+- 탈퇴 회원 작성 게시글/댓글/대댓글은 유지하고 작성자명을 `탈퇴한 유저`로 표시하는 정책은 문서 간 일치한다.
+- 신고 대상 게시글/댓글이 삭제되어도 `report` 이력은 유지하는 것이 최신 정책이다.
 
 ## 5. 구현 가능 여부
 
 직접 충돌 기준: **PASS**
 
 전체 구현 착수 기준: **PASS**
-
-현재 검토 대상 source 문서만 기준으로 할 때 구현을 막는 충돌은 없다.

@@ -38,13 +38,13 @@
     *   Note: `reason_type` (1: 부적절한 내용, 2: 광고/도배, 3: 저작권 침해, 4: 기타)
     *   Note: `status` (PENDING, PROCESSED)
     *   Note: `processed_by`, `processed_at`은 관리자 신고 처리 시 기록하는 최소 처리 이력이다.
-    *   Note: 다형 대상 참조(`target_type`, `target_id`)의 실제 대상 존재 여부는 구현 단계에서 서비스 로직 또는 트리거로 검증한다.
+    *   Note: 다형 대상 참조(`target_type`, `target_id`)의 실제 대상 존재 여부는 신고 생성 시점에 구현 단계의 서비스 로직 또는 트리거로 검증한다. 신고 대상 게시글 또는 댓글이 이후 hard delete되어도 `report` 이력은 유지하며, 관리자 신고 목록에서는 해당 신고 대상을 `삭제된 대상`으로 표시한다.
 
 ### [6] 스터디 그룹 (Groups)
 *   groups (**id**, group_code, name, leader_id, created_at)
     *   PK: `id` (int)
     *   Unique: `group_code`
-    *   FK: `creator_id` → users(id)
+    *   FK: `leader_id` → users(id)
     *   Note: 화면에서 `group_link`라고 표현하는 값은 그룹 가입 코드(`group_code`)와 같은 값이다. 초대 URL, 외부 공유, 만료 시간, 재발급 기능은 제외한다.
 
 ### [7] 그룹 멤버 (Group_Members)
@@ -53,7 +53,7 @@
     *   FK: `group_id` → groups(id)
     *       `user_id` → users(id)
     *   Note: `role` (LEADER, MEMBER), `joined_at` 기준으로 리더 위임 판단
-    *   Note: 그룹의 최초 생성자는 `groups.creator_id`, 현재 그룹장은 `group_members.role = LEADER`로 판단
+    *   Note: 현재 그룹장은 `groups.leader_id`로 판단
 
 ### [8] 통합 일정 (Schedules)
 *   schedules (**id**, user_id, group_id, title, start_at, end_at, description, type, created_at, updated_at)
@@ -66,7 +66,7 @@
 *   file (**id**, file_url)
     *   PK: (id, file_url)
     *   FK: 'id' → post(id)
-    *   Note: 실제 파일은 `/uploads/posts/{post_id}/...` 형식의 서버 로컬 경로에 저장하고 DB에는 `file_url`만 저장한다. 별도 파일 메타데이터는 저장하지 않는다.
+    *   Note: 실제 파일은 `/uploads/posts/{post_id}/{UUID}` 형식의 서버 로컬 경로에 저장하고 DB에는 `file_url`만 저장한다. 별도 파일 메타데이터는 저장하지 않는다.
 
 ### [10] 알림(notification)
 *   notification(**id**, is_read, comment_content, commented_post_id, commented_user_id, commented_id, created_at)

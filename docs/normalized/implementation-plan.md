@@ -34,8 +34,8 @@
 | 1 | 프로젝트 기반/DB | 공통 | DB migration, 공통 에러 응답, 세션 기반 인증 기반 |
 | 2 | 인증/회원 기본 | AUTH-001..AUTH-003, USER-001..USER-002 | 계정, 세션, 내 정보 조회/수정 구현 |
 | 3 | 게시글/파일/추천 조회 | POST-001..POST-005, POST 응답 추천 필드 | 게시글 CRUD, 파일 업로드/교체, `liked_by_me`/`like_count` 읽기 계약 구현 |
-| 4 | 추천/신고 | POST-006..POST-007, REPORT-001..REPORT-003 | 추천 토글, USER 신고 생성, 관리자 신고 처리 구현 |
-| 5 | 댓글/알림 | COMMENT-001..COMMENT-005, NOTI-001 | 댓글/대댓글과 알림 생성/조회 구현 |
+| 4 | 댓글/알림 | COMMENT-001..COMMENT-005, NOTI-001 | 댓글/대댓글과 알림 생성/조회 구현 |
+| 5 | 추천/신고 | POST-006..POST-007, REPORT-001..REPORT-003 | 추천 토글, USER 신고 생성, 관리자 신고 처리 구현 |
 | 6 | 일정 | CAL-001..CAL-004 | 개인 일정 CRUD 구현 |
 | 7 | 그룹/그룹 일정 | GROUP-001..GROUP-004, GCAL-001..GCAL-004 | 그룹 가입 코드, 멤버십, 그룹 일정 구현 |
 | 8 | 회원 탈퇴 통합 생명주기 | USER-003 | 일정/그룹 의존 로직이 준비된 뒤 탈퇴 생명주기 구현 |
@@ -75,7 +75,7 @@ Tasks:
 - 인증 필요 middleware 또는 guard를 만든다.
 - 현재 사용자 조회 helper를 만든다.
 - `author_display_name` 계산 helper를 만든다.
-- `status`, `deleted_at`, `updated_at` 처리 패턴을 정한다.
+- `users.status`, `users.deleted_at`, `updated_at` 처리 패턴을 정한다.
 
 Tests:
 
@@ -102,7 +102,7 @@ Implementation notes:
 - 탈퇴는 회원 row를 삭제하지 않고 `status`, `deleted_at`으로 표현한다.
 - 탈퇴 처리 시점에는 개인정보성 컬럼을 즉시 변경하지 않는다.
 - `deleted_at`으로부터 6개월이 지난 탈퇴 회원은 개인정보 삭제 대상으로 처리하며, `login_id`, `password`, `name`, `email_address`를 NULL 값으로 변경한다. NULL 값이 들어갈 수 없는 속성은 식별할 수 없는 값으로 변경한다.
-- 개인 일정 비활성화, 전체 그룹 탈퇴, 그룹장 위임, 유일 그룹 비활성화는 일정/그룹 기능 구현 이후 통합 단계에서 구현한다.
+- 개인 일정 즉시 삭제, 전체 그룹 탈퇴, `groups.leader_id` 기반 그룹장 위임, 유일 그룹 즉시 삭제는 일정/그룹 기능 구현 이후 통합 단계에서 구현한다.
 
 Tests:
 
@@ -110,7 +110,7 @@ Tests:
 - 로그인 성공/실패/탈퇴 회원 거부.
 - 내 정보 수정 성공/동일값/현재 비밀번호 누락/불일치/이메일 중복.
 - 탈퇴 후 로그인 불가와 작성물 유지.
-- 개인 일정 비활성화, 모든 그룹 탈퇴, 그룹장 위임, 유일 그룹 비활성화는 통합 생명주기 테스트에서 검증.
+- 개인 일정 즉시 삭제, 모든 그룹 탈퇴, 그룹장 위임, 유일 그룹 즉시 삭제는 통합 생명주기 테스트에서 검증.
 
 ### 4-3. 게시글/파일
 
@@ -124,13 +124,13 @@ API order:
 
 Implementation notes:
 
-- 목록은 `post.status = ACTIVE`만 노출한다.
 - 필터 종류는 `keyword`, `author`, `category` 중 하나만 허용한다.
 - 상세 조회 시 조회수를 증가시킨다.
 - Post 응답 계약의 `liked_by_me`, `like_count`는 추천 등록/취소 API보다 먼저 게시글 조회에서 읽기 전용으로 제공할 수 있어야 한다.
-- 파일은 로컬 `/uploads/posts/{post_id}/...`에 저장하고 DB에는 `file_url`만 저장한다.
+- 파일은 로컬 `/uploads/posts/{post_id}/{UUID}`에 저장하고 DB에는 `file_url`만 저장한다.
 - 수정 시 새 파일이 있으면 기존 파일 목록을 전체 교체한다.
-- 삭제는 soft delete다.
+- 게시글 삭제 시 추천, 댓글/대댓글, 첨부파일, 알림은 FK cascade 정책에 따라 함께 삭제한다.
+- 삭제된 게시글 또는 함께 삭제된 댓글/대댓글 대상 신고 이력은 유지하고 관리자 신고 목록에서 `삭제된 대상`으로 표시한다.
 
 Tests:
 
@@ -160,6 +160,8 @@ Implementation notes:
 - 작성자와 대상 작성자가 같은 경우 알림을 생성하지 않는다.
 - 알림 조회 시 반환 대상 알림을 읽음 처리한다.
 - 작성자 표시명은 탈퇴 작성자가 익명보다 우선한다.
+- 댓글 삭제 시 대댓글과 알림은 FK cascade 정책에 따라 함께 삭제한다.
+- 삭제된 댓글 또는 함께 삭제된 대댓글 대상 신고 이력은 유지하고 관리자 신고 목록에서 `삭제된 대상`으로 표시한다.
 
 Tests:
 
@@ -188,6 +190,7 @@ Implementation notes:
 - 신고 생성 시 `PENDING`, 처리자/처리시각 NULL로 저장한다.
 - 신고 처리는 `PROCESSED`, `processed_by`, `processed_at`만 변경한다.
 - 신고 처리로 게시글/댓글을 자동 삭제하지 않는다.
+- 관리자 신고 목록은 신고 대상 row를 조회할 수 없으면 `target_display_name = 삭제된 대상`을 반환한다.
 
 Tests:
 
@@ -211,13 +214,19 @@ Implementation notes:
 
 - 개인 일정은 `group_id = NULL`이다.
 - 본인 일정만 접근 가능하다.
+- 목록 조회의 `start_at`, `end_at`은 ISO-8601 optional query다.
+- 목록 조회에서 `start_at`과 `end_at`이 모두 없으면 본인의 전체 개인 일정을 반환한다.
+- 목록 조회에서 `start_at`과 `end_at`이 모두 있으면 `schedules.start_at <= end_at AND schedules.end_at >= start_at`인 기간 겹침 일정을 반환한다.
+- 목록 조회에서 `start_at` 또는 `end_at` 한쪽만 있으면 열린 기간 조건으로 조회한다.
+- 목록 조회의 날짜 형식 오류와 `end_at < start_at`은 `400`으로 처리한다.
 - `type`은 1..5만 허용한다.
 - `end_at >= start_at`을 검증한다.
-- 삭제는 soft delete다.
+- 삭제는 일정 row 삭제로 처리한다.
 
 Tests:
 
-- 본인 일정 목록 조회.
+- 본인 일정 전체 목록 조회와 기간 겹침 조회.
+- 개인 일정 목록 조회의 날짜 형식 오류와 `end_at < start_at` 실패.
 - 등록/수정/삭제 성공.
 - 종료가 시작보다 빠른 경우 실패.
 - 타인 일정 접근 실패.
@@ -238,19 +247,26 @@ API order:
 Implementation notes:
 
 - 그룹 생성 시 `group_code`를 생성한다.
-- 생성자는 `group_members`에 `LEADER`로 자동 등록한다.
+- 생성자는 `groups.leader_id`와 `group_members.role = LEADER`로 자동 등록한다.
 - 가입은 `group_code` 입력 방식이다.
 - 이미 가입한 그룹은 중복 가입할 수 없다.
 - 그룹 상세와 그룹 일정은 그룹원만 접근한다.
+- 그룹 일정 목록 조회의 `start_at`, `end_at`은 ISO-8601 optional query다.
+- 그룹 일정 목록 조회에서 `start_at`과 `end_at`이 모두 없으면 해당 그룹의 전체 그룹 일정을 반환한다.
+- 그룹 일정 목록 조회에서 `start_at`과 `end_at`이 모두 있으면 `schedules.start_at <= end_at AND schedules.end_at >= start_at`인 기간 겹침 일정을 반환한다.
+- 그룹 일정 목록 조회에서 `start_at` 또는 `end_at` 한쪽만 있으면 열린 기간 조건으로 조회한다.
+- 그룹 일정 목록 조회의 날짜 형식 오류와 `end_at < start_at`은 `400`으로 처리한다.
 - 모든 그룹원은 그룹 일정을 등록/수정/삭제할 수 있다.
 
 Tests:
 
-- 내 그룹 목록은 가입한 ACTIVE 그룹만 반환.
+- 내 그룹 목록은 가입한 그룹만 반환.
 - 그룹 생성 시 코드 반환과 LEADER 등록.
 - 유효 코드 가입/잘못된 코드/중복 가입.
 - 그룹원이 아닌 상세/일정 접근 실패.
-- 그룹 일정 CRUD와 시간 검증.
+- 그룹 일정 전체 목록 조회와 기간 겹침 조회.
+- 그룹 일정 목록 조회의 날짜 형식 오류와 `end_at < start_at` 실패.
+- 그룹 일정 CRUD와 저장 시간 검증.
 
 ## 5. API 구현 순서 상세
 
@@ -263,9 +279,9 @@ Tests:
 | 5 | `GET/POST /api/posts` | `post`, `file` |
 | 6 | `GET/PATCH/DELETE /api/posts/{post_id}` | post ownership |
 | 7 | `POST/DELETE /api/posts/{post_id}/likes` | `likes` |
-| 8 | reports/admin reports APIs | `report`, user/admin guard |
-| 9 | comments/replies APIs | `comments`, notification helper |
-| 10 | `GET /api/notifications` | `notification` |
+| 8 | comments/replies APIs | `comments`, notification helper |
+| 9 | `GET /api/notifications` | `notification` |
+| 10 | reports/admin reports APIs | `report`, user/admin guard, comments target support |
 | 11 | personal schedules APIs | `schedules` |
 | 12 | groups APIs | `groups`, `group_members` |
 | 13 | group schedules APIs | group membership guard |
@@ -277,8 +293,8 @@ Tests:
 2. DB migration/schema smoke test
 3. AUTH/USER 기본 API 단위 및 통합 테스트
 4. POST/File/추천 조회 필드 API 통합 테스트
-5. Like/Report/Admin API 통합 테스트
-6. COMMENT/Notification API 통합 테스트
+5. COMMENT/Notification API 통합 테스트
+6. Like/Report/Admin API 통합 테스트
 7. Personal Schedule API 통합 테스트
 8. Group/Group Schedule API 통합 테스트
 9. 탈퇴 생명주기와 6개월 후 개인정보 처리 회귀 테스트
@@ -299,7 +315,7 @@ Tests:
 ## 8. Assumptions
 
 - 구현 프레임워크, DBMS, ORM, 테스트 러너는 아직 이 문서에서 특정하지 않는다.
-- 비밀번호 해시, 세션 저장소, 파일명 충돌 방지 방식은 보안 기본값을 사용하되 API 계약을 변경하지 않는다.
+- 비밀번호 해시와 세션 저장소는 보안 기본값을 사용하되 API 계약을 변경하지 않는다.
 - 6개월 경과 탈퇴 회원의 개인정보성 컬럼 처리 실행 방식은 구현 세부사항이며, source의 6개월 후 처리 정책과 API 계약을 바꾸지 않는다.
 
 ## 9. Open Questions
