@@ -48,10 +48,10 @@ Lifecycle:
 - 탈퇴 회원이 작성한 게시글, 댓글, 대댓글은 삭제하지 않고 유지한다.
 - 탈퇴 회원 작성물은 일반 조회, 검색, 페이지네이션 대상에 포함한다.
 - 탈퇴 회원 작성물의 작성자명은 `탈퇴한 유저`로 표시하며, 익명 표시보다 우선한다.
-- 탈퇴 회원의 개인 일정은 `schedules.status = DELETED`, `schedules.deleted_at = now()`로 비활성화 및 삭제 대기 상태를 표현하며 일반 조회에 노출하지 않는다.
+- 탈퇴 회원의 개인 캘린더 및 개인 일정은 즉시 삭제한다.
 - 탈퇴 회원은 가입되어 있던 모든 그룹에서 탈퇴 처리한다.
 - 탈퇴 회원이 그룹장인 그룹은 탈퇴 전에 가장 먼저 가입한 다른 그룹원에게 `LEADER` 권한을 자동 위임한다.
-- 탈퇴 회원이 유일한 그룹원인 그룹은 `groups.status = INACTIVE`, `groups.deleted_at = now()`로 비활성화 및 삭제 대기 상태를 표현하며 일반 조회에 노출하지 않는다.
+- 탈퇴 회원이 유일한 그룹원인 그룹은 즉시 삭제한다.
 - 삭제 예정일 컬럼은 사용하지 않는다.
 
 Display:
@@ -116,8 +116,6 @@ Rules:
 | `content` | string, nullable | 본문 |
 | `created_at` | string | 작성 일시 |
 | `updated_at` | string, nullable | 수정 일시. NULL이 아니면 수정된 게시글 |
-| `deleted_at` | string, nullable | 삭제 일시 |
-| `status` | string | `ACTIVE`, `DELETED` |
 | `view_count` | integer | 조회수 |
 | `main_category` | string | 대주제, 학과 |
 | `sub_category` | string | 소주제, 과목 |
@@ -146,8 +144,6 @@ Rules:
 | `is_anonymous` | boolean | 익명 작성 여부 |
 | `created_at` | string | 작성 일시 |
 | `updated_at` | string, nullable | 수정 일시. NULL이 아니면 수정된 댓글 |
-| `deleted_at` | string, nullable | 삭제 일시 |
-| `status` | string | `ACTIVE`, `DELETED` |
 
 대댓글에는 다시 대댓글을 작성할 수 없다. 대댓글 작성 API의 부모 댓글은 `parent_comment = null`인 일반 댓글이어야 한다.
 
@@ -168,6 +164,7 @@ Rules:
 | `reporter_id` | integer | 신고한 회원 id |
 | `target_type` | string | `POST`, `COMMENT` |
 | `target_id` | integer | 신고 대상 id. `target_type`에 따라 게시글 id 또는 댓글/대댓글 id |
+| `target_display_name` | string | 관리자 신고 목록 표시용 신고 대상명. 대상이 삭제되었으면 `삭제된 대상` |
 | `reason_type` | integer | 신고 사유. `1`: 부적절한 내용, `2`: 광고/도배, `3`: 저작권 침해, `4`: 기타 |
 | `created_at` | string | 신고 시각 |
 | `status` | string | 신고 처리 상태. `PENDING`, `PROCESSED` |
@@ -193,10 +190,8 @@ Rules:
 | `id` | integer | 그룹 식별자 |
 | `group_code` | string | 그룹 가입 코드 |
 | `name` | string | 그룹명 |
-| `creator_id` | integer | 생성자 id |
+| `leader_id` | integer | 현재 그룹장 회원 id |
 | `created_at` | string | 생성 일시 |
-| `deleted_at` | string, nullable | 그룹 삭제 또는 비활성화 일시 |
-| `status` | string | `ACTIVE`, `INACTIVE`, `DELETED` |
 
 그룹 채팅은 요구사항상 구현하지 않으므로 채팅 리소스와 API를 제공하지 않는다.
 
@@ -223,8 +218,6 @@ Rules:
 | `type` | integer | 일정 종류. `1`: 수업, `2`: 과제, `3`: 시험, `4`: 스터디, `5`: 기타 |
 | `created_at` | string | 생성 일시 |
 | `updated_at` | string, nullable | 수정 일시 |
-| `deleted_at` | string, nullable | 삭제 일시 |
-| `status` | string | `ACTIVE`, `DELETED` |
 
 ## 5. 인증 및 회원 API
 
@@ -398,11 +391,11 @@ Processing:
 - `deleted_at`으로부터 6개월이 지난 탈퇴 회원은 정책에 따라 개인정보 삭제 대상으로 처리하며, `login_id`, `password`, `name`, `email_address` 등 개인정보성 컬럼은 NULL 값으로 변경한다.
 - 현재 회원의 서버 세션을 무효화한다.
 - 탈퇴 회원이 작성한 게시글, 댓글, 대댓글은 삭제하지 않는다.
-- 탈퇴 회원의 개인 일정은 `schedules.status = DELETED`, `schedules.deleted_at = now()`로 전환하고 일반 조회에 노출하지 않는다.
+- 탈퇴 회원의 개인 캘린더 및 개인 일정은 즉시 삭제한다.
 - 탈퇴 회원은 가입되어 있던 모든 그룹에서 탈퇴 처리한다.
 - 탈퇴 회원이 그룹장인 그룹은 탈퇴 전에 다른 그룹원에게 `LEADER` 권한을 자동 위임한다.
 - 위임 대상은 탈퇴 회원을 제외하고 해당 그룹에 가장 먼저 가입한 그룹원이다.
-- 탈퇴 회원이 유일한 그룹원인 그룹은 `groups.status = INACTIVE`, `groups.deleted_at = now()`로 전환하고 일반 조회에 노출하지 않는다.
+- 탈퇴 회원이 유일한 그룹원인 그룹은 즉시 삭제한다.
 
 Response `204`: 없음
 
@@ -439,7 +432,6 @@ Rules:
 - 기본 정렬은 작성일 기준 최신순이다.
 - `keyword`, `author`, 주제 필터(`main_category`, `sub_category`)는 한 번에 하나만 사용할 수 있다.
 - 주제 필터에서 `main_category`와 `sub_category`는 하나의 주제 필터 묶음으로 본다.
-- `post.status = ACTIVE`인 게시글만 일반 목록에 노출한다.
 - 탈퇴 회원의 게시글은 유지되며 목록, 검색, 페이지네이션 대상에 포함한다.
 - 작성자 필터 결과에서는 탈퇴한 유저의 게시글과 익명 게시글을 제외한다.
 
@@ -455,7 +447,6 @@ Response `200`:
       "title": "게시글 제목",
       "created_at": "2026-05-09T10:00:00Z",
       "updated_at": null,
-      "status": "ACTIVE",
       "view_count": 0,
       "main_category": "컴퓨터공학과",
       "sub_category": "데이터베이스",
@@ -497,7 +488,7 @@ Errors:
 
 | Status | 조건 |
 |---:|---|
-| 404 | 게시글 없음 또는 삭제된 게시글 |
+| 404 | 게시글 없음 |
 
 ### P-03. 게시글 작성
 
@@ -525,7 +516,7 @@ Response `201`: Post
 Processing:
 
 - 업로드된 실제 파일은 서버 로컬 경로에 저장한다.
-- 파일 저장 경로와 DB에 저장되는 `file_url`은 `/uploads/posts/{post_id}/...` 형식을 기본으로 한다.
+- 파일 저장 경로와 DB에 저장되는 `file_url`은 `/uploads/posts/{post_id}/{UUID}` 형식을 기본으로 한다.
 - DB에는 `file_url`만 저장하며, 파일명, 원본 파일명, 파일 크기, MIME 타입, 확장자 등 별도 파일 메타데이터는 저장하지 않는다.
 - 파일 크기와 확장자 제한 정책은 최소 구현 범위에서 별도 요구사항으로 두지 않는다.
 
@@ -585,11 +576,14 @@ Errors:
 | Method | `DELETE` |
 | Path | `/api/posts/{post_id}` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 3-2, UF-10, SC-09, `post.status`, `post.deleted_at` |
+| Trace | 요구사항 3-2, UF-10, SC-09, `post` |
 
 Processing:
 
-- 삭제 성공 시 `post.status = DELETED`, `post.deleted_at = now()`로 처리한다.
+- 작성자 권한을 확인한 뒤 게시글을 삭제한다.
+- 게시글 삭제 시 해당 게시글의 추천, 댓글/대댓글, 첨부파일, 알림은 FK cascade 정책에 따라 함께 삭제된다.
+- 해당 게시글, 또는 함께 삭제된 댓글/대댓글을 대상으로 생성된 신고 이력은 `report` 테이블에 유지한다.
+- 삭제된 게시글 또는 댓글/대댓글을 대상으로 한 신고 이력은 관리자 신고 목록에서 `삭제된 대상`으로 표시한다.
 
 Response `204`: 없음
 
@@ -666,9 +660,11 @@ Rules:
 - 일반 사용자(`role = USER`)는 게시글 또는 댓글을 신고할 수 있다.
 - `target_type`은 `POST`, `COMMENT` 중 하나다. `COMMENT`는 댓글과 대댓글이 저장된 `comments` 대상을 의미한다.
 - `target_id`는 `target_type`에 따라 게시글 id 또는 댓글 id를 의미한다.
+- 신고 생성 시 `target_id`에 해당하는 게시글 또는 댓글은 존재해야 한다.
 - `reason_type`은 `1`, `2`, `3`, `4` 중 하나다.
 - 동일 회원은 동일 신고 대상에 대해 한 번만 신고할 수 있다.
 - 신고 생성 시 `status = PENDING`, `processed_by = null`, `processed_at = null`로 저장한다.
+- 신고 생성 후 신고 대상 게시글 또는 댓글이 삭제되어도 신고 이력은 유지한다.
 
 Response `201`: Report
 
@@ -705,6 +701,7 @@ Response `200`:
       "reporter_id": 2,
       "target_type": "POST",
       "target_id": 10,
+      "target_display_name": "삭제된 대상",
       "reason_type": 1,
       "created_at": "2026-05-09T10:00:00Z",
       "status": "PENDING",
@@ -717,7 +714,8 @@ Response `200`:
 
 Rules:
 
-- 관리자 신고 목록에는 신고 대상, 신고자, 신고 사유, 신고 시각, 신고 처리 상태, 처리자, 처리 시각을 표시할 수 있도록 `target_type`, `target_id`, `reporter_id`, `reason_type`, `created_at`, `status`, `processed_by`, `processed_at`을 반환한다.
+- 관리자 신고 목록에는 신고 대상, 신고자, 신고 사유, 신고 시각, 신고 처리 상태, 처리자, 처리 시각을 표시할 수 있도록 `target_type`, `target_id`, `target_display_name`, `reporter_id`, `reason_type`, `created_at`, `status`, `processed_by`, `processed_at`을 반환한다.
+- 신고 대상 게시글 또는 댓글이 삭제되어 대상 row를 조회할 수 없으면 `target_display_name`은 `삭제된 대상`으로 반환한다.
 
 Errors:
 
@@ -783,7 +781,6 @@ Response `200`:
 
 Rules:
 
-- `comments.status = ACTIVE`인 댓글과 대댓글만 일반 목록에 노출한다.
 - 탈퇴 회원이 작성한 댓글과 대댓글은 삭제하지 않고 유지하며, 작성자명은 `탈퇴한 유저`로 표시한다.
 - 익명 댓글과 대댓글은 작성자명 대신 `익명_숫자`로 표시한다.
 
@@ -905,11 +902,14 @@ Errors:
 | Method | `DELETE` |
 | Path | `/api/comments/{comment_id}` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 4-2, 4-4, UF-12, UF-13, SC-09, `comments.status`, `comments.deleted_at` |
+| Trace | 요구사항 4-2, 4-4, UF-12, UF-13, SC-09, `comments` |
 
 Processing:
 
-- 삭제 성공 시 `comments.status = DELETED`, `comments.deleted_at = now()`로 처리한다.
+- 작성자 권한을 확인한 뒤 댓글 또는 대댓글을 삭제한다.
+- 댓글 삭제 시 해당 댓글의 대댓글과 알림은 FK cascade 정책에 따라 함께 삭제된다.
+- 해당 댓글, 또는 함께 삭제된 대댓글을 대상으로 생성된 신고 이력은 `report` 테이블에 유지한다.
+- 삭제된 댓글 또는 대댓글을 대상으로 한 신고 이력은 관리자 신고 목록에서 `삭제된 대상`으로 표시한다.
 
 Response `204`: 없음
 
@@ -979,8 +979,17 @@ Query parameters:
 
 | 이름 | 타입 | 필수 | 설명 |
 |---|---|---|---|
-| `start_at` | string | no | 조회 시작 일시 |
-| `end_at` | string | no | 조회 종료 일시 |
+| `start_at` | string | no | 조회 시작 일시. ISO-8601 문자열 |
+| `end_at` | string | no | 조회 종료 일시. ISO-8601 문자열 |
+
+Rules:
+
+- 개인 일정은 `schedules.group_id = null`이고 `schedules.user_id = 현재 회원 id`인 일정이다.
+- `start_at`과 `end_at`이 모두 없으면 현재 회원의 모든 개인 일정을 반환한다.
+- `start_at`만 있으면 `schedules.end_at >= start_at`인 개인 일정을 반환한다.
+- `end_at`만 있으면 `schedules.start_at <= end_at`인 개인 일정을 반환한다.
+- `start_at`과 `end_at`이 모두 있으면 조회 기간과 일정 기간이 겹치는 개인 일정을 반환한다.
+- 조회 기간과 일정 기간의 겹침은 `schedules.start_at <= end_at AND schedules.end_at >= start_at`으로 판단한다.
 
 Response `200`:
 
@@ -994,7 +1003,13 @@ Authorization:
 
 - 인증된 회원은 자신의 개인 일정만 조회할 수 있다.
 - 개인 일정은 `group_id = null`인 일정이다.
-- `schedules.status = ACTIVE`인 개인 일정만 일반 조회에 노출한다.
+
+Errors:
+
+| Status | 조건 |
+|---:|---|
+| 400 | `start_at` 또는 `end_at` 형식이 ISO-8601 문자열이 아닌 경우 |
+| 400 | `start_at`과 `end_at`이 모두 있고 `end_at`이 `start_at`보다 빠른 경우 |
 
 ### S-02. 개인 일정 등록
 
@@ -1070,11 +1085,11 @@ Errors:
 | Method | `DELETE` |
 | Path | `/api/me/schedules/{schedule_id}` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 5-3, UF-15, SC-13, `schedules.status`, `schedules.deleted_at` |
+| Trace | 요구사항 5-3, UF-15, SC-13, `schedules` |
 
 Processing:
 
-- 삭제 성공 시 `schedules.status = DELETED`, `schedules.deleted_at = now()`로 처리한다.
+- 본인 소유 여부를 확인한 뒤 개인 일정을 삭제한다.
 
 Response `204`: 없음
 
@@ -1107,7 +1122,6 @@ Response `200`:
 Rules:
 
 - 현재 회원이 속한 그룹만 조회한다.
-- `groups.status = ACTIVE`인 그룹만 일반 목록에 노출한다.
 
 ### G-02. 그룹 생성
 
@@ -1134,9 +1148,8 @@ Response `201`:
     "id": 1,
     "group_code": "ABC123",
     "name": "스터디 그룹",
-    "creator_id": 1,
-    "created_at": "2026-05-09T10:00:00Z",
-    "status": "ACTIVE"
+    "leader_id": 1,
+    "created_at": "2026-05-09T10:00:00Z"
   },
   "membership": {
     "group_id": 1,
@@ -1149,10 +1162,10 @@ Response `201`:
 
 Processing:
 
-- 그룹 생성자는 그룹의 `creator_id`가 된다.
-- `creator_id`는 최초 생성자를 기록하며, 현재 그룹장은 `group_members.role = LEADER`로 판단한다.
-- 그룹 생성자는 그룹 생성과 동시에 `group_members`에 자동 등록된다.
-- 그룹 생성자의 역할은 `LEADER`로 설정한다.
+- 그룹을 생성한 회원은 그룹의 `leader_id`가 된다.
+- 그룹 생성 시 현재 그룹장은 `leader_id`와 `group_members.role = LEADER`로 기록한다.
+- 그룹을 생성한 회원은 그룹 생성과 동시에 `group_members`에 자동 등록된다.
+- 그룹을 생성한 회원의 역할은 `LEADER`로 설정한다.
 - 생성된 그룹의 `group_code`를 유지한다.
 - 생성된 `group_code`는 화면에 보여준다.
 - 화면에서 `group_link`라고 표현하는 값은 가입자가 입력하는 그룹 가입 코드와 같은 값이다.
@@ -1219,7 +1232,7 @@ Errors:
 | Status | 조건 |
 |---:|---|
 | 403 | 그룹원이 아닌 회원의 접근 |
-| 404 | 그룹 없음 또는 비활성화/삭제된 그룹 |
+| 404 | 그룹 없음 |
 
 ## 12. 그룹 일정 API
 
@@ -1231,6 +1244,22 @@ Errors:
 | Path | `/api/groups/{group_id}/schedules` |
 | 인증 | 인증 필요 |
 | Trace | 요구사항 7-2, UF-17, SC-16, `schedules` |
+
+Query parameters:
+
+| 이름 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `start_at` | string | no | 조회 시작 일시. ISO-8601 문자열 |
+| `end_at` | string | no | 조회 종료 일시. ISO-8601 문자열 |
+
+Rules:
+
+- 그룹 일정은 `schedules.group_id = {group_id}`인 일정이다.
+- `start_at`과 `end_at`이 모두 없으면 해당 그룹의 모든 그룹 일정을 반환한다.
+- `start_at`만 있으면 `schedules.end_at >= start_at`인 그룹 일정을 반환한다.
+- `end_at`만 있으면 `schedules.start_at <= end_at`인 그룹 일정을 반환한다.
+- `start_at`과 `end_at`이 모두 있으면 조회 기간과 일정 기간이 겹치는 그룹 일정을 반환한다.
+- 조회 기간과 일정 기간의 겹침은 `schedules.start_at <= end_at AND schedules.end_at >= start_at`으로 판단한다.
 
 Response `200`:
 
@@ -1244,7 +1273,15 @@ Authorization:
 
 - 해당 그룹의 그룹원만 조회할 수 있다.
 - 타 그룹 캘린더의 그룹 일정은 조회할 수 없다.
-- `schedules.status = ACTIVE`인 그룹 일정만 일반 조회에 노출한다.
+
+Errors:
+
+| Status | 조건 |
+|---:|---|
+| 400 | `start_at` 또는 `end_at` 형식이 ISO-8601 문자열이 아닌 경우 |
+| 400 | `start_at`과 `end_at`이 모두 있고 `end_at`이 `start_at`보다 빠른 경우 |
+| 403 | 그룹원이 아닌 회원의 접근 |
+| 404 | 그룹 없음 |
 
 ### GS-02. 그룹 일정 등록
 
@@ -1331,11 +1368,11 @@ Errors:
 | Method | `DELETE` |
 | Path | `/api/groups/{group_id}/schedules/{schedule_id}` |
 | 인증 | 인증 필요 |
-| Trace | 요구사항 7-2, UF-17, SC-16, `schedules.status`, `schedules.deleted_at` |
+| Trace | 요구사항 7-2, UF-17, SC-16, `schedules` |
 
 Processing:
 
-- 삭제 성공 시 `schedules.status = DELETED`, `schedules.deleted_at = now()`로 처리한다.
+- 그룹원 권한을 확인한 뒤 그룹 일정을 삭제한다.
 
 Response `204`: 없음
 

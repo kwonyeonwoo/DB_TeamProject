@@ -1,7 +1,8 @@
-# Document Validation Report
+# 01. Document Validation Report
 
-검토일: 2026-05-11
-검토 범위:
+검증일: 2026-05-12
+
+검증 대상:
 
 - `docs/source/user-flow.md`
 - `docs/source/requirements.md`
@@ -10,78 +11,86 @@
 - `docs/source/erd.md`
 - `docs/source/logical-schema.md`
 - `docs/source/physical-schema.md`
+- `docs/source/dbml.md`
 
 구현 가능 여부: **PASS**
 
-판단: 이전 검증에서 남아 있던 BLOCKER는 없었고, MAJOR 2건과 QUESTION 2건은 최신 source 문서에 모두 반영되었다. 공통 에러 응답, 파일 업로드 최소 정책, 관리자 권한 부여 정책, 신고 처리 결과 저장 정책, 그룹 가입 코드 UX가 요구사항, 유저 플로우, 화면 설계, API 명세, ERD, 논리 스키마, 물리 스키마에 일관되게 반영되었다. 새로 생긴 BLOCKER/MAJOR/QUESTION 충돌은 발견되지 않았다.
+판단: 이전 검증에서 남아 있던 ERD Mermaid 관계 라벨 불일치와 게시글/댓글 hard delete 이후 신고 이력 처리 정책 미결정 사항이 모두 해소되었다. 현재 source 문서 기준으로 구현을 막는 BLOCKER, MAJOR, QUESTION은 확인되지 않았다.
+
+최종 재확인: 2026-05-12 기준 원본 문서 간 직접 충돌은 추가로 발견되지 않았다. 요구사항, 유저 플로우, 화면 설계, API, ERD, 논리 스키마, 물리 스키마, DBML의 주요 계약은 일치한다.
 
 ## 1. 문서 인벤토리
 
-| 문서 | 상태 | 검증 결과 |
+| 문서 | 상태 | 검증 메모 |
 |---|---|---|
-| `docs/source/requirements.md` | 작성됨 | 공통 에러 응답, 파일 업로드 정책, ADMIN 부여 정책, 신고 처리 이력, 그룹 코드 UX가 명시되어 있다. |
-| `docs/source/user-flow.md` | 작성됨 | 게시글 파일 업로드, 신고 생성/처리, 그룹 생성/가입 흐름이 요구사항과 일치한다. |
-| `docs/source/screen-design.md` | 작성됨 | 실패 메시지, 파일 정책, 관리자 신고 처리 화면, 그룹 코드 표시 방식이 API/요구사항과 일치한다. |
-| `docs/source/api-spec.md` | 작성됨 | 공통 에러 응답, 신고 처리 API, 파일 업로드/수정 정책, 그룹 코드 API 계약이 반영되어 있다. |
-| `docs/source/erd.md` | 작성됨 | `report.status`, `processed_by`, `processed_at`과 파일/그룹 코드 정책이 반영되어 있다. |
-| `docs/source/logical-schema.md` | 작성됨 | 신고 처리 이력 컬럼, ADMIN 부여 정책, 파일 저장 범위, 그룹 코드 정책이 반영되어 있다. |
-| `docs/source/physical-schema.md` | 작성됨 | 신고 처리 컬럼, 제약, FK, 인덱스가 논리 스키마와 일치한다. |
+| `docs/source/requirements.md` | 일치 | `groups.leader_id` 현재 그룹장, 개인 일정 즉시 삭제, 유일 그룹원 그룹 즉시 삭제, UUID 파일 경로, 신고 대상 삭제 후 신고 이력 유지 정책이 반영되어 있다. |
+| `docs/source/user-flow.md` | 일치 | 신고 생성 후 대상이 삭제되어도 이력을 유지하고 관리자 신고 목록에서 `삭제된 대상`으로 표시하는 흐름이 반영되어 있다. |
+| `docs/source/screen-design.md` | 일치 | 관리자 신고 목록의 삭제된 대상 표시 정책과 신고 처리 시 상태만 변경하는 정책이 함께 반영되어 있다. |
+| `docs/source/api-spec.md` | 일치 | `target_display_name` 응답 필드, 신고 생성 시 대상 존재 검증, 대상 삭제 후 report 유지 및 `삭제된 대상` 표시 규칙이 반영되어 있다. |
+| `docs/source/erd.md` | 일치 | Mermaid의 `users -> groups` 관계 라벨이 `groups.leader_id = 현재 그룹장`으로 수정되었고, report 대상 삭제 후 이력 유지 정책이 반영되어 있다. |
+| `docs/source/logical-schema.md` | 일치 | `report.target_id`의 생성 시점 존재 검증과 삭제 후 report 유지 정책이 반영되어 있다. |
+| `docs/source/physical-schema.md` | 일치 | report 대상은 단일 FK 없이 다형 참조로 유지하며, 대상 삭제 후 report 이력을 보존하는 정책이 반영되어 있다. |
+| `docs/source/dbml.md` | 일치 | DBML 주석과 `target_id` note에 신고 대상 hard delete 이후 report 이력 유지 정책이 반영되어 있다. |
 
-## 2. 이전 이슈 처리 결과
+## 2. 이전 이슈 해결 여부
 
-| 이전 ID | 이전 Severity | 현재 상태 | 근거 |
+| 이전 ID | 이전 Severity | 현재 상태 | 확인 결과 |
 |---|---|---|---|
-| V-M01 / D-01 | MAJOR | 해결 | 공통 에러 응답은 `code`, `message` 필수, `details` 선택으로 `requirements.md`, `api-spec.md`, `screen-design.md`에 반영되었다. |
-| V-M02 / D-02 | MAJOR | 해결 | 실제 파일은 `/uploads/posts/{post_id}/...` 로컬 경로에 저장하고 DB에는 `file_url`만 저장한다. 수정 시 새 파일이 있으면 전체 교체, 없으면 유지한다. 파일 메타데이터는 저장하지 않는 것으로 확정되었다. |
-| V-Q01 / D-03 | QUESTION | 해결 | `users.role` 기본값은 `USER`, ADMIN은 DB seed 또는 운영자 DB 변경으로만 부여한다. 신고 처리는 `report.status`, `processed_by`, `processed_at`만 변경한다. |
-| V-Q02 / D-04 | QUESTION | 해결 | 그룹 생성 시 `group_code`를 화면에 보여주고 가입자는 코드를 입력한다. `group_link`는 그룹 가입 코드와 같은 값이며 복잡한 초대 링크/공유 기능은 제외되었다. |
+| V-M01 / D-01 | MAJOR | 해결 유지 | 공통 오류 응답은 `code`, `message` 필수, `details` 선택으로 정리되어 있다. |
+| V-M02 / D-02 | MAJOR | 해결 유지 | 파일 업로드는 직접 업로드 방식이며 저장 경로는 `/uploads/posts/{post_id}/{UUID}`, DB 저장값은 `file_url`로 통일되어 있다. |
+| V-Q01 / D-03 | QUESTION | 해결 유지 | `users.role` 기본값은 `USER`, ADMIN은 DB seed 또는 운영 DB 변경으로만 부여한다. 신고 처리는 `report.status`, `processed_by`, `processed_at`만 변경한다. |
+| V-Q02 / D-04 | QUESTION | 해결 유지 | `group_link`는 별도 URL이 아니라 `group_code`와 동일한 값이며, 복잡한 초대 링크/공유 기능은 제외되어 있다. |
+| V-N01 / D-M01 | MAJOR | 해결 | ERD Mermaid의 `users -> groups` 관계 라벨이 `groups.leader_id = 현재 그룹장`으로 변경되었다. |
+| V-N02 / D-01 | QUESTION | 해결 | 게시글/댓글 hard delete 이후에도 기존 `report` 이력은 유지하고, 관리자 신고 목록에서는 삭제된 대상을 `삭제된 대상`으로 표시하도록 요구사항, API, 화면, ERD, 논리/물리 스키마, DBML에 반영되었다. |
 
-## 3. 검증 요약
+## 3. 신규 검증 결과
 
-| Severity | 건수 | 내용 |
-|---|---:|---|
-| BLOCKER | 0 | 구현을 중단해야 하는 직접 충돌 없음 |
-| MAJOR | 0 | 구현 전 반드시 추가 결정해야 하는 주요 정책 없음 |
-| MINOR | 0 | 현재 검토 범위에서 별도 경미 이슈 없음 |
-| QUESTION | 0 | 사용자 결정을 기다리는 항목 없음 |
+| ID | Severity | Related document | Problem | Why it matters | Suggested fix | Required user decision |
+|---|---|---|---|---|---|---|
+| 없음 | - | - | 현재 검증 대상 문서 간 신규 충돌 없음 | - | - | 없음 |
 
 ## 4. 체크리스트 결과
 
 ### Requirements
 
-- 기능 요구사항은 현재 구현 범위 기준으로 명확하다.
-- CRUD 범위는 회원, 게시글, 댓글/대댓글, 신고, 일정, 그룹에 대해 문서화되어 있다.
-- 역할과 권한은 USER/ADMIN, 관리자 신고 처리 권한, 그룹원 일정 권한 기준으로 정의되어 있다.
-- 주요 검증 규칙과 오류 상황은 API 명세 및 화면 설계에 반영되어 있다.
+- 기능 요구사항, CRUD 정책, 권한, 검증 규칙, 주요 예외가 구현 가능한 수준으로 정리되어 있다.
+- 회원 탈퇴 시 회원 row는 유지하되 개인 일정과 유일 그룹원 그룹은 즉시 삭제하는 정책이 반영되어 있다.
+- 게시글/댓글은 hard delete 대상이며, 삭제된 게시글/댓글을 가리키던 신고 이력은 유지한다.
 
 ### User Flow
 
-- 주요 흐름은 요구사항과 API에 매핑된다.
-- 신고 처리 흐름은 상태 변경으로 제한되어 있으며 게시글/댓글 삭제를 자동 수행하지 않는다.
-- 그룹 가입은 단순 코드 입력 흐름으로 정리되어 있다.
+- 주요 사용자 흐름은 요구사항과 API에 연결되어 있다.
+- 신고 생성 후 대상 삭제 시 관리자 신고 목록에서 `삭제된 대상`으로 표시하는 흐름이 명시되어 있다.
 
 ### Screen Design
 
-- 화면 액션은 API 또는 구현 제외 항목과 매핑된다.
-- 파일 업로드, 실패 메시지, 신고 처리, 그룹 코드 표시 정책이 요구사항과 일치한다.
-- 그룹 채팅은 구현 제외로 일관되게 처리되어 있다.
+- 화면 액션은 API 또는 백엔드 동작과 연결되어 있다.
+- 관리자 신고 관리 화면은 삭제된 신고 대상을 `삭제된 대상`으로 표시한다.
 
 ### API
 
-- 모든 핵심 엔드포인트는 요구사항 및 화면 흐름과 연결되어 있다.
-- 공통 에러 응답 형식이 확정되어 있다.
-- 신고 처리 API `PATCH /api/admin/reports/{report_id}`가 DB 스키마와 trace된다.
-- Open Questions는 남아 있지 않다.
+- 신고 목록 응답은 `target_display_name`을 포함한다.
+- 신고 생성은 대상 존재를 검증하고, 신고 생성 후 대상이 삭제되어도 report 이력을 유지한다.
+- 게시글/댓글 삭제 API는 대상 관련 신고 이력을 삭제하지 않는 정책을 명시한다.
 
 ### Database
 
-- `report` 처리 이력 컬럼은 논리/물리/ERD 간 일치한다.
-- `users.role` 기본값과 ADMIN 부여 정책은 API/스키마 설명에 반영되어 있다.
-- `file`은 `file_url`만 저장하는 최소 정책과 일치한다.
-- ERD, 논리 스키마, 물리 스키마 간 직접 mismatch는 발견되지 않았다.
+- ERD, logical schema, physical schema, DBML의 주요 테이블과 관계가 일치한다.
+- `report.target_id`는 단일 FK 없이 다형 참조로 유지하며, 생성 시점에 대상 존재를 검증한다.
+- 게시글/댓글 삭제 후에도 report row는 유지된다.
+
+### Cross-Document Consistency
+
+- Requirement ↔ User Flow: 일치.
+- Requirement ↔ Screen Design: 일치.
+- Requirement ↔ API: 일치.
+- API ↔ DB Schema: 일치.
+- ERD ↔ Logical Schema ↔ Physical Schema ↔ DBML: 일치.
+- User Flow ↔ API: 일치.
+- Screen Design ↔ API: 일치.
 
 ## 5. 구현 시작 판단
 
 **PASS**
 
-현재 검토 대상 source 문서 기준으로 백엔드 구현 계획 단계로 이동할 수 있다. 다음 단계에서 실제 구현을 시작할 경우, AGENTS.md의 단계 규칙에 따라 normalized specification과 implementation plan을 최신 source 문서에 맞춰 갱신한 뒤 한 기능 그룹씩 구현해야 한다.
+현재 문서 기준으로 구현 전 반드시 결정해야 할 BLOCKER, MAJOR, QUESTION은 없다. 정규화 명세와 구현 계획을 기준으로 다음 단계 진행이 가능하다.

@@ -131,7 +131,7 @@
 - `view_count`
 - `created_at`
 - `updated_at`
-- `deleted_at`
+- `deleted_at` (현재 원본 스키마에서는 `users`에만 사용)
 - `processed_at`
 - `joined_at`
 
@@ -162,7 +162,7 @@ DB에서는 다음처럼 대응:
 
 - 생성일: `createdAt`
 - 수정일: `updatedAt`
-- 삭제일: `deletedAt`
+- 삭제일: `deletedAt` (현재 원본 스키마에서는 회원 탈퇴 일시에만 사용)
 - 처리일시: `processedAt`
 - 시작일시: `startAt`
 - 종료일시: `endAt`
@@ -172,7 +172,7 @@ DB 예시:
 
 - `created_at`
 - `updated_at`
-- `deleted_at`
+- `deleted_at` (회원 탈퇴 일시)
 - `processed_at`
 - `start_at`
 - `end_at`
@@ -186,7 +186,6 @@ DB 예시:
 예시:
 - `isRead`
 - `isMine`
-- `isDeleted`
 - `hasFile`
 - `canEdit`
 
@@ -205,7 +204,6 @@ DB 예시:
 - `PROCESSED`
 - `ACTIVE`
 - `DELETED`
-- `INACTIVE`
 
 ## 7. 혼용 금지 규칙
 

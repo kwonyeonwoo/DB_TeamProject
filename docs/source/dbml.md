@@ -1,21 +1,11 @@
 // 기준 문서: docs/source/requirements.md, docs/source/logical-schema.md, docs/source/erd.md, docs/source/physical-schema.md
-// 최신 요구사항과 물리 스키마 기준으로 생명주기 상태, 익명 여부, 신고 이력, 그룹 가입 시각, 알림 nullable 규칙을 반영한다.
-// 신고 대상은 target_type과 target_id 조합으로 표현하며, 실제 대상 존재 여부는 구현 단계에서 검증한다.
+// 최신 요구사항과 물리 스키마 기준으로 회원/신고 상태, 익명 여부, 신고 이력, 그룹 가입 시각, 알림 nullable 규칙을 반영한다.
+// 신고 대상은 target_type과 target_id 조합으로 표현하며, 실제 대상 존재 여부는 신고 생성 시점에 구현 단계에서 검증한다.
+// 신고 대상 게시글 또는 댓글이 이후 hard delete되어도 report 이력은 유지하며 관리자 신고 목록에서는 삭제된 대상으로 표시한다.
 // ADMIN 권한은 회원 가입/API로 부여하지 않고 DB seed 데이터 또는 운영자의 직접 DB 변경으로만 부여한다.
 
 Enum user_status {
   ACTIVE
-  DELETED
-}
-
-Enum active_deleted_status {
-  ACTIVE
-  DELETED
-}
-
-Enum group_status {
-  ACTIVE
-  INACTIVE
   DELETED
 }
 
@@ -65,8 +55,6 @@ Table post {
   content text [note: '게시글 본문']
   created_at timestamp [default: `now()`, not null, note: '작성 일시']
   updated_at timestamp [note: '수정 일시. NULL이 아니면 수정된 게시글로 판단']
-  deleted_at timestamp [note: '삭제 일시']
-  status active_deleted_status [default: 'ACTIVE', not null, note: '게시글 상태']
   view_count int [default: 0, not null, note: '조회수']
   main_category varchar [not null, note: '대주제, 학과']
   sub_category varchar [not null, note: '소주제, 과목']
@@ -74,10 +62,9 @@ Table post {
 
   indexes {
     user_id [name: 'idx_post_user_id']
-    (status, created_at) [name: 'idx_post_status_created_at']
     (main_category, sub_category) [name: 'idx_post_category']
     created_at [name: 'idx_post_created_at']
-    (user_id, is_anonymous, status) [name: 'idx_post_author_filter']
+    (user_id, is_anonymous) [name: 'idx_post_author_filter']
   }
 }
 
@@ -104,14 +91,11 @@ Table comments {
   is_anonymous boolean [default: false, not null, note: '익명 작성 여부']
   created_at timestamp [default: `now()`, not null, note: '작성 일시']
   updated_at timestamp [note: '수정 일시. NULL이 아니면 수정된 댓글로 판단']
-  deleted_at timestamp [note: '삭제 일시']
-  status active_deleted_status [default: 'ACTIVE', not null, note: '댓글 상태']
 
   indexes {
     user_id [name: 'idx_comments_user_id']
     post_id [name: 'idx_comments_post_id']
     parent_comment [name: 'idx_comments_parent_comment']
-    (status, created_at) [name: 'idx_comments_status_created_at']
     (post_id, is_anonymous) [name: 'idx_comments_anonymous']
   }
 }
@@ -121,7 +105,7 @@ Table report {
   id int [pk, increment, not null, note: '신고 식별자']
   reporter_id int [not null, ref: > users.id, note: '신고한 회원']
   target_type report_target_type [not null, note: '신고 대상 유형. POST 또는 COMMENT']
-  target_id int [not null, note: '신고 대상 id. target_type에 따라 post.id 또는 comments.id. COMMENT는 댓글과 대댓글을 모두 포함']
+  target_id int [not null, note: '신고 대상 id. target_type에 따라 post.id 또는 comments.id. COMMENT는 댓글과 대댓글을 모두 포함. 대상 hard delete 이후에도 신고 이력은 유지']
   reason_type int [not null, note: '신고 사유 유형. 1: 부적절한 내용, 2: 광고/도배, 3: 저작권 침해, 4: 기타']
   created_at timestamp [default: `now()`, not null, note: '신고 시각']
   status report_status [default: 'PENDING', not null, note: '신고 처리 상태']
@@ -144,14 +128,11 @@ Table groups {
   id int [pk, increment, not null, note: '그룹 식별자']
   group_code varchar [unique, not null, note: '그룹 가입 코드. 화면에서 group_link라고 표현하는 값과 동일']
   name varchar [not null, note: '그룹명']
-  creator_id int [not null, ref: > users.id, note: '최초 그룹 생성자. 현재 그룹장은 group_members.role = LEADER로 판단']
+  leader_id int [not null, ref: > users.id, note: '현재 그룹장']
   created_at timestamp [default: `now()`, not null, note: '그룹 생성 일시']
-  deleted_at timestamp [note: '그룹 삭제 또는 비활성화 일시']
-  status group_status [default: 'ACTIVE', not null, note: '그룹 상태']
 
   indexes {
-    creator_id [name: 'idx_groups_creator_id']
-    status [name: 'idx_groups_status']
+    leader_id [name: 'idx_groups_leader_id']
   }
 }
 
@@ -181,21 +162,18 @@ Table schedules {
   type int [not null, note: '일정 종류. 1: 수업, 2: 과제, 3: 시험, 4: 스터디, 5: 기타']
   created_at timestamp [default: `now()`, not null, note: '생성 일시']
   updated_at timestamp [note: '수정 일시']
-  deleted_at timestamp [note: '삭제 일시']
-  status active_deleted_status [default: 'ACTIVE', not null, note: '일정 상태']
 
   indexes {
     (user_id, start_at, end_at) [name: 'idx_schedules_user_period']
     (group_id, start_at, end_at) [name: 'idx_schedules_group_period']
     type [name: 'idx_schedules_type']
-    status [name: 'idx_schedules_status']
   }
 }
 
 // [9] 첨부파일(file)
 Table file {
   id int [not null, ref: > post.id, note: '첨부파일이 속한 게시글']
-  file_url varchar [not null, note: '업로드된 첨부파일의 저장 위치. 실제 파일은 /uploads/posts/{post_id}/... 형식으로 저장하며 별도 파일 메타데이터는 저장하지 않음']
+  file_url varchar [not null, note: '업로드된 첨부파일의 저장 위치. 실제 파일은 /uploads/posts/{post_id}/{UUID} 형식으로 저장하며 별도 파일 메타데이터는 저장하지 않음']
 
   indexes {
     (id, file_url) [pk]

@@ -91,10 +91,8 @@
 | 상태 | 접근 규칙 |
 |---|---|
 | `users.status = DELETED` | 로그인할 수 없다. 작성물은 유지되고 화면에는 `탈퇴한 유저`로 표시된다. 개인정보성 컬럼은 탈퇴 시점에 즉시 변경하지 않고 `deleted_at`으로부터 6개월 후 NULL 또는 식별 불가 값으로 변경한다. |
-| `post.status = DELETED` | 일반 목록/상세 조회 대상에서 제외한다. |
-| `comments.status = DELETED` | 일반 댓글 목록에서 제외한다. |
-| `groups.status != ACTIVE` | 일반 그룹 목록/상세/일정 접근에서 제외한다. |
-| `schedules.status = DELETED` | 일반 일정 조회에서 제외한다. |
+
+원본 물리 스키마 기준 `post`, `comments`, `groups`, `schedules`에는 별도 삭제 상태 컬럼이 없다. 해당 리소스의 삭제와 cascade 동작은 API 계약 및 DB FK 정책을 따른다.
 
 ## 7. 권한 실패 상태 코드
 

@@ -29,14 +29,14 @@
 | POST-002 | 게시글 상세 조회 | 3-3, 4-5, 4-6 | SC-09, UF-10, UF-14 | `GET /api/posts/{post_id}` | `post`, `file`, `comments`, `users`, `likes` | P0 |
 | POST-003 | 게시글 작성 및 파일 업로드 | 3-1 | SC-10, UF-09 | `POST /api/posts` | `post`, `file` | P0 |
 | POST-004 | 게시글 수정 | 3-2 | SC-10, UF-10 | `PATCH /api/posts/{post_id}` | `post`, `file` | P0 |
-| POST-005 | 게시글 삭제 | 3-2 | SC-09, UF-10 | `DELETE /api/posts/{post_id}` | `post`, `file`, `comments`, `likes`, `notification` | P0 |
+| POST-005 | 게시글 삭제 및 관련 신고 이력 유지 | 3-2, 3-5 | SC-09, UF-10, UF-18 | `DELETE /api/posts/{post_id}` | `post`, `file`, `comments`, `likes`, `notification`, `report` | P0 |
 | POST-006 | 게시글 추천 등록 | 3-4 | SC-09, UF-11 | `POST /api/posts/{post_id}/likes` | `likes`, `post` | P1 |
 | POST-007 | 게시글 추천 취소 | 3-4 | SC-09, UF-11 | `DELETE /api/posts/{post_id}/likes` | `likes`, `post` | P1 |
 | COMMENT-001 | 댓글 목록 조회 | 4-2, 4-4, 4-5, 4-6 | SC-09, UF-12, UF-13, UF-14 | `GET /api/posts/{post_id}/comments` | `comments`, `users` | P0 |
 | COMMENT-002 | 댓글 작성 | 4-1, 2-1 | SC-09, UF-12 | `POST /api/posts/{post_id}/comments` | `comments`, `notification`, `post` | P0 |
 | COMMENT-003 | 대댓글 작성 | 4-3, 2-1 | SC-09, UF-13 | `POST /api/comments/{comment_id}/replies` | `comments`, `notification`, `post` | P0 |
 | COMMENT-004 | 댓글/대댓글 수정 | 4-2, 4-4 | SC-09, UF-12, UF-13 | `PATCH /api/comments/{comment_id}` | `comments` | P0 |
-| COMMENT-005 | 댓글/대댓글 삭제 | 4-2, 4-4 | SC-09, UF-12, UF-13 | `DELETE /api/comments/{comment_id}` | `comments`, `notification` | P0 |
+| COMMENT-005 | 댓글/대댓글 삭제 및 관련 신고 이력 유지 | 3-5, 4-2, 4-4 | SC-09, UF-12, UF-13, UF-18 | `DELETE /api/comments/{comment_id}` | `comments`, `notification`, `report` | P0 |
 | REPORT-001 | 게시글/댓글 신고(USER) | 1-5, 3-5 | SC-09, UF-11A | `POST /api/reports` | `report`, `post`, `comments`, `users` | P1 |
 | REPORT-002 | 관리자 신고 목록 조회 | 1-5, 3-5 | SC-18, UF-18 | `GET /api/admin/reports` | `report`, `users` | P2 |
 | REPORT-003 | 관리자 신고 처리 | 1-5, 3-5 | SC-18, UF-18 | `PATCH /api/admin/reports/{report_id}` | `report`, `users` | P2 |
