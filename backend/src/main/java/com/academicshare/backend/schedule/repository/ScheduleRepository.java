@@ -1,0 +1,7 @@
+package com.academicshare.backend.schedule.repository;
+
+import com.academicshare.backend.schedule.domain.Schedule;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
+}
