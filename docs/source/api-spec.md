@@ -657,7 +657,8 @@ Request body:
 
 Rules:
 
-- 일반 사용자(`role = USER`)는 게시글 또는 댓글을 신고할 수 있다.
+- 일반 사용자(`role = USER`)만 게시글 또는 댓글을 신고할 수 있다.
+- 관리자(`role = ADMIN`)는 신고 생성 API를 호출할 수 없다.
 - `target_type`은 `POST`, `COMMENT` 중 하나다. `COMMENT`는 댓글과 대댓글이 저장된 `comments` 대상을 의미한다.
 - `target_id`는 `target_type`에 따라 게시글 id 또는 댓글 id를 의미한다.
 - 신고 생성 시 `target_id`에 해당하는 게시글 또는 댓글은 존재해야 한다.
