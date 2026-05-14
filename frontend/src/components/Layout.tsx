@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/useAuth'
+import { NotificationPopup } from './NotificationPopup'
 
 const authenticatedNavItems = [
   { to: '/', label: '홈' },
@@ -59,6 +60,7 @@ export function Layout() {
           </nav>
           {status === 'authenticated' && (
             <div className="auth-summary">
+              <NotificationPopup />
               <span>{user?.name}님</span>
               <button className="text-button" type="button" onClick={handleLogout}>
                 로그아웃

@@ -69,6 +69,14 @@ function App() {
               }
             />
             <Route
+              path="/posts/:postId/edit"
+              element={
+                <RequireAuth>
+                  <PostWritePage />
+                </RequireAuth>
+              }
+            />
+            <Route
               path="/mypage"
               element={
                 <RequireAuth>
