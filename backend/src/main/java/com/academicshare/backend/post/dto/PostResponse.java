@@ -2,9 +2,11 @@ package com.academicshare.backend.post.dto;
 
 import com.academicshare.backend.post.domain.Post;
 import com.academicshare.backend.post.domain.PostFile;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@JsonInclude(JsonInclude.Include.ALWAYS)
 public record PostResponse(
         Integer id,
         Integer userId,
