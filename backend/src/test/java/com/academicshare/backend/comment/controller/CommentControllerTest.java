@@ -19,6 +19,9 @@ import com.academicshare.backend.notification.domain.Notification;
 import com.academicshare.backend.notification.repository.NotificationRepository;
 import com.academicshare.backend.post.domain.Post;
 import com.academicshare.backend.post.repository.PostRepository;
+import com.academicshare.backend.report.domain.Report;
+import com.academicshare.backend.report.domain.ReportTargetType;
+import com.academicshare.backend.report.repository.ReportRepository;
 import com.academicshare.backend.user.domain.User;
 import com.academicshare.backend.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -38,6 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 class CommentControllerTest {
 
     private static final String ANONYMOUS_1 = "\uC775\uBA85_1";
+    private static final String ANONYMOUS_2 = "\uC775\uBA85_2";
     private static final String DELETED_USER = "\uD0C8\uD1F4\uD55C \uC720\uC800";
 
     @Autowired
@@ -54,6 +58,9 @@ class CommentControllerTest {
 
     @Autowired
     private NotificationRepository notificationRepository;
+
+    @Autowired
+    private ReportRepository reportRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -155,6 +162,38 @@ class CommentControllerTest {
     }
 
     @Test
+    void createAnonymousCommentResponseUsesPostScopedAnonymousNumber() throws Exception {
+        User postAuthor = saveUser("comment-anon-post-author", "Anon Post Author", "comment-anon-post-author@example.com");
+        User commentAuthor = saveUser("comment-anon-author", "Anon Comment Author", "comment-anon-author@example.com");
+        Post post = savePost(postAuthor, true);
+
+        mockMvc.perform(post("/posts/{postId}/comments", post.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "content": "anonymous comment",
+                                  "is_anonymous": true
+                                }
+                                """)
+                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, commentAuthor.getId())
+                        .with(csrf()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.author_display_name").value(ANONYMOUS_2));
+
+        Integer commentId = commentRepository.findByPostIdOrderByCreatedAtAscIdAsc(post.getId())
+                .stream()
+                .filter(comment -> comment.getUserId().equals(commentAuthor.getId()))
+                .findFirst()
+                .orElseThrow()
+                .getId();
+
+        mockMvc.perform(get("/posts/{postId}/comments", post.getId())
+                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, postAuthor.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.id == %d)].author_display_name".formatted(commentId)).value(contains(ANONYMOUS_2)));
+    }
+
+    @Test
     void createReplyCreatesNotificationAndRejectsReplyToReplyOrMissingParent() throws Exception {
         User postAuthor = saveUser("reply-post-author", "Reply Post Author", "reply-post-author@example.com");
         User parentAuthor = saveUser("reply-parent-author", "Reply Parent Author", "reply-parent-author@example.com");
@@ -191,6 +230,14 @@ class CommentControllerTest {
                 .orElseThrow()
                 .getId();
 
+        mockMvc.perform(post("/comments/{commentId}/replies", parentComment.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"   \"}")
+                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, replyAuthor.getId())
+                        .with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(ErrorCode.VALIDATION_ERROR.name()));
+
         mockMvc.perform(post("/comments/{commentId}/replies", replyId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"nested reply\"}")
@@ -206,6 +253,42 @@ class CommentControllerTest {
                         .with(csrf()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(ErrorCode.RESOURCE_NOT_FOUND.name()));
+    }
+
+    @Test
+    void createAnonymousReplyResponseUsesPostScopedAnonymousNumber() throws Exception {
+        User postAuthor = saveUser("reply-anon-post-author", "Reply Anon Post Author", "reply-anon-post-author@example.com");
+        User existingAnonymousAuthor = saveUser("reply-existing-anon-author", "Existing Anonymous Author", "reply-existing-anon@example.com");
+        User parentAuthor = saveUser("reply-anon-parent-author", "Reply Anon Parent Author", "reply-anon-parent@example.com");
+        User replyAuthor = saveUser("reply-anon-author", "Reply Anonymous Author", "reply-anon-author@example.com");
+        Post post = savePost(postAuthor);
+        saveComment(existingAnonymousAuthor, post, null, "existing anonymous comment", true);
+        Comment parentComment = saveComment(parentAuthor, post, null, "parent comment", false);
+
+        mockMvc.perform(post("/comments/{commentId}/replies", parentComment.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "content": "anonymous reply",
+                                  "is_anonymous": true
+                                }
+                                """)
+                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, replyAuthor.getId())
+                        .with(csrf()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.author_display_name").value(ANONYMOUS_2));
+
+        Integer replyId = commentRepository.findByPostIdOrderByCreatedAtAscIdAsc(post.getId())
+                .stream()
+                .filter(comment -> comment.isReply() && comment.getUserId().equals(replyAuthor.getId()))
+                .findFirst()
+                .orElseThrow()
+                .getId();
+
+        mockMvc.perform(get("/posts/{postId}/comments", post.getId())
+                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, postAuthor.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.id == %d)].author_display_name".formatted(replyId)).value(contains(ANONYMOUS_2)));
     }
 
     @Test
@@ -240,6 +323,14 @@ class CommentControllerTest {
 
         mockMvc.perform(patch("/comments/{commentId}", comment.getId())
                         .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"   \"}")
+                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, owner.getId())
+                        .with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(ErrorCode.VALIDATION_ERROR.name()));
+
+        mockMvc.perform(patch("/comments/{commentId}", comment.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"blocked\"}")
                         .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, other.getId())
                         .with(csrf()))
@@ -256,9 +347,113 @@ class CommentControllerTest {
     }
 
     @Test
-    void deleteCommentRequiresAuthorAndDeletesRepliesAndReplyNotifications() throws Exception {
+    void updateAnonymousCommentResponseUsesPostScopedAnonymousNumber() throws Exception {
+        User postAuthor = saveUser("comment-update-anon-post-author", "Update Anon Post Author", "comment-update-anon-post@example.com");
+        User owner = saveUser("comment-update-anon-owner", "Update Anon Owner", "comment-update-anon-owner@example.com");
+        Post post = savePost(postAuthor, true);
+        Comment comment = saveComment(owner, post, null, "before anonymous update", false);
+
+        mockMvc.perform(patch("/comments/{commentId}", comment.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"is_anonymous\":true}")
+                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, owner.getId())
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.author_display_name").value(ANONYMOUS_2));
+
+        mockMvc.perform(get("/posts/{postId}/comments", post.getId())
+                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, postAuthor.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[?(@.id == %d)].author_display_name".formatted(comment.getId())).value(contains(ANONYMOUS_2)));
+    }
+
+    @Test
+    void updateAndDeleteCommentKeepsNotificationSnapshot() throws Exception {
+        User postAuthor = saveUser("comment-snapshot-post-author", "Snapshot Post Author", "comment-snapshot-post@example.com");
+        User commentAuthor = saveUser("comment-snapshot-author", "Snapshot Author", "comment-snapshot-author@example.com");
+        Post post = savePost(postAuthor);
+
+        mockMvc.perform(post("/posts/{postId}/comments", post.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"original comment\"}")
+                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, commentAuthor.getId())
+                        .with(csrf()))
+                .andExpect(status().isCreated());
+
+        Comment comment = commentRepository.findByPostIdOrderByCreatedAtAscIdAsc(post.getId())
+                .stream()
+                .filter(savedComment -> savedComment.getUserId().equals(commentAuthor.getId()))
+                .findFirst()
+                .orElseThrow();
+        Notification notification = notificationRepository
+                .findByCommentedUserIdOrderByCreatedAtDesc(postAuthor.getId())
+                .get(0);
+
+        mockMvc.perform(patch("/comments/{commentId}", comment.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"updated comment\"}")
+                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, commentAuthor.getId())
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").value("updated comment"));
+
+        assertThat(notificationRepository.findById(notification.getId()))
+                .hasValueSatisfying(savedNotification -> assertThat(savedNotification.getCommentContent()).isEqualTo("original comment"));
+
+        mockMvc.perform(delete("/comments/{commentId}", comment.getId())
+                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, commentAuthor.getId())
+                        .with(csrf()))
+                .andExpect(status().isNoContent());
+
+        commentRepository.flush();
+        assertThat(commentRepository.existsById(comment.getId())).isFalse();
+        assertThat(notificationRepository.findById(notification.getId()))
+                .hasValueSatisfying(savedNotification -> assertThat(savedNotification.getCommentContent()).isEqualTo("original comment"));
+    }
+
+    @Test
+    void deleteReplyKeepsNotificationSnapshot() throws Exception {
+        User postAuthor = saveUser("reply-snapshot-post-author", "Reply Snapshot Post Author", "reply-snapshot-post@example.com");
+        User parentAuthor = saveUser("reply-snapshot-parent-author", "Reply Snapshot Parent Author", "reply-snapshot-parent@example.com");
+        User replyAuthor = saveUser("reply-snapshot-author", "Reply Snapshot Author", "reply-snapshot-author@example.com");
+        Post post = savePost(postAuthor);
+        Comment parentComment = saveComment(parentAuthor, post, null, "parent comment", false);
+
+        mockMvc.perform(post("/comments/{commentId}/replies", parentComment.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"original reply\"}")
+                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, replyAuthor.getId())
+                        .with(csrf()))
+                .andExpect(status().isCreated());
+
+        Comment reply = commentRepository.findByPostIdOrderByCreatedAtAscIdAsc(post.getId())
+                .stream()
+                .filter(savedComment -> savedComment.isReply() && savedComment.getUserId().equals(replyAuthor.getId()))
+                .findFirst()
+                .orElseThrow();
+        Notification notification = notificationRepository
+                .findByCommentedUserIdOrderByCreatedAtDesc(parentAuthor.getId())
+                .get(0);
+
+        mockMvc.perform(delete("/comments/{commentId}", reply.getId())
+                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, replyAuthor.getId())
+                        .with(csrf()))
+                .andExpect(status().isNoContent());
+
+        commentRepository.flush();
+        assertThat(commentRepository.existsById(reply.getId())).isFalse();
+        assertThat(notificationRepository.findById(notification.getId()))
+                .hasValueSatisfying(savedNotification -> {
+                    assertThat(savedNotification.getCommentContent()).isEqualTo("original reply");
+                    assertThat(savedNotification.getCommentedId()).isEqualTo(parentComment.getId());
+                });
+    }
+
+    @Test
+    void deleteCommentRequiresAuthorAndKeepsReplyNotificationSnapshotAndReports() throws Exception {
         User owner = saveUser("comment-delete-owner", "Delete Owner", "comment-delete-owner@example.com");
         User other = saveUser("comment-delete-other", "Delete Other", "comment-delete-other@example.com");
+        User reporter = saveUser("comment-delete-reporter", "Delete Reporter", "comment-delete-reporter@example.com");
         Post post = savePost(owner);
         Comment parentComment = saveComment(owner, post, null, "parent to delete", false);
         Comment reply = saveComment(other, post, parentComment.getId(), "reply to delete", false);
@@ -267,6 +462,18 @@ class CommentControllerTest {
                 post.getId(),
                 owner.getId(),
                 parentComment.getId()
+        ));
+        Report parentReport = reportRepository.saveAndFlush(new Report(
+                reporter.getId(),
+                ReportTargetType.COMMENT,
+                parentComment.getId(),
+                1
+        ));
+        Report replyReport = reportRepository.saveAndFlush(new Report(
+                reporter.getId(),
+                ReportTargetType.COMMENT,
+                reply.getId(),
+                2
         ));
 
         mockMvc.perform(delete("/comments/{commentId}", parentComment.getId())
@@ -283,13 +490,56 @@ class CommentControllerTest {
         commentRepository.flush();
         assertThat(commentRepository.existsById(parentComment.getId())).isFalse();
         assertThat(commentRepository.existsById(reply.getId())).isFalse();
-        assertThat(notificationRepository.existsById(replyNotification.getId())).isFalse();
+        assertThat(notificationRepository.findById(replyNotification.getId()))
+                .hasValueSatisfying(notification -> {
+                    assertThat(notification.getCommentContent()).isEqualTo("reply notification");
+                    assertThat(notification.getCommentedId()).isEqualTo(parentComment.getId());
+                });
+        assertThat(reportRepository.existsById(parentReport.getId())).isTrue();
+        assertThat(reportRepository.existsById(replyReport.getId())).isTrue();
 
         mockMvc.perform(delete("/comments/{commentId}", 999_999)
                         .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, owner.getId())
                         .with(csrf()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(ErrorCode.RESOURCE_NOT_FOUND.name()));
+    }
+
+    @Test
+    void commentApiRequiresAuthentication() throws Exception {
+        User owner = saveUser("comment-auth-owner", "Auth Owner", "comment-auth-owner@example.com");
+        Post post = savePost(owner);
+        Comment comment = saveComment(owner, post, null, "auth comment", false);
+
+        mockMvc.perform(get("/posts/{postId}/comments", post.getId()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(ErrorCode.AUTHENTICATION_REQUIRED.name()));
+
+        mockMvc.perform(post("/posts/{postId}/comments", post.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"new comment\"}")
+                        .with(csrf()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(ErrorCode.AUTHENTICATION_REQUIRED.name()));
+
+        mockMvc.perform(post("/comments/{commentId}/replies", comment.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"new reply\"}")
+                        .with(csrf()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(ErrorCode.AUTHENTICATION_REQUIRED.name()));
+
+        mockMvc.perform(patch("/comments/{commentId}", comment.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"updated\"}")
+                        .with(csrf()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(ErrorCode.AUTHENTICATION_REQUIRED.name()));
+
+        mockMvc.perform(delete("/comments/{commentId}", comment.getId())
+                        .with(csrf()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value(ErrorCode.AUTHENTICATION_REQUIRED.name()));
     }
 
     private User saveUser(String loginId, String name, String emailAddress) {
@@ -310,13 +560,17 @@ class CommentControllerTest {
     }
 
     private Post savePost(User user) {
+        return savePost(user, false);
+    }
+
+    private Post savePost(User user, boolean anonymous) {
         return postRepository.saveAndFlush(new Post(
                 user.getId(),
                 "post title",
                 "post content",
                 "Major",
                 "Subject",
-                false
+                anonymous
         ));
     }
 

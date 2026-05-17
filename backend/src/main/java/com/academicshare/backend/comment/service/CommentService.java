@@ -156,8 +156,15 @@ public class CommentService {
     }
 
     private CommentResponse toResponse(Comment comment) {
-        User user = userRepository.findById(comment.getUserId()).orElse(null);
-        return CommentResponse.from(comment, authorDisplayName(comment, user, Map.of(comment.getUserId(), 1)));
+        Post post = findPost(comment.getPostId());
+        List<Comment> comments = commentRepository.findByPostIdOrderByCreatedAtAscIdAsc(comment.getPostId());
+        Map<Integer, User> usersById = usersById(comments);
+        Map<Integer, Integer> anonymousNumbers = anonymousNumbers(post, comments, usersById);
+
+        return CommentResponse.from(
+                comment,
+                authorDisplayName(comment, usersById.get(comment.getUserId()), anonymousNumbers)
+        );
     }
 
     private Map<Integer, User> usersById(List<Comment> comments) {

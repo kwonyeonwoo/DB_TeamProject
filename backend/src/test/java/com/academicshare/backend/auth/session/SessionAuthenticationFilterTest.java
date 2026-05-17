@@ -75,7 +75,7 @@ class SessionAuthenticationFilterTest {
     void protectedPathWithActiveUserSessionSetsCurrentUser() throws Exception {
         User user = saveUser("session-user", "session-user@example.com");
 
-        mockMvc.perform(get("/users/me")
+        mockMvc.perform(get("/test/current-user")
                         .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, user.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(user.getId()))
@@ -107,7 +107,7 @@ class SessionAuthenticationFilterTest {
     void currentUserRoleHelperAllowsAdmin() throws Exception {
         Integer adminId = insertAdminUser();
 
-        mockMvc.perform(get("/admin/reports")
+        mockMvc.perform(get("/test/admin/reports")
                         .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, adminId))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0]").value("report"));
@@ -117,7 +117,7 @@ class SessionAuthenticationFilterTest {
     void currentUserRoleHelperRejectsNonAdmin() throws Exception {
         User user = saveUser("report-user", "report-user@example.com");
 
-        mockMvc.perform(get("/admin/reports")
+        mockMvc.perform(get("/test/admin/reports")
                         .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, user.getId()))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(ErrorCode.ACCESS_DENIED.name()));

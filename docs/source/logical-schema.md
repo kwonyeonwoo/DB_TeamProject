@@ -73,6 +73,5 @@
     *   PK: (id)
     *   FK: `commented_post_id` → post(id)
     *       `commented_user_id` → users(id)
-    *       `commented_id` → comments(id)
-    *   Note: `commented_id`는 댓글 알림이면 NULL, 대댓글 알림이면 부모 댓글 id
-    *   Note: `comment_content`는 알림에 표시할 댓글 내용을 보관한다.
+    *   Note: `commented_id`는 댓글 알림이면 NULL, 대댓글 알림이면 부모 댓글 id를 저장하는 nullable navigation hint이며 댓글 삭제 cascade FK로 사용하지 않는다.
+    *   Note: `comment_content`는 알림 발생 당시 표시용 댓글/대댓글 내용을 보관하는 스냅샷 값이며 원본 수정/삭제 후에도 변경하지 않는다.

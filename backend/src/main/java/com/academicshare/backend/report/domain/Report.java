@@ -83,4 +83,46 @@ public class Report {
             status = ReportStatus.PENDING;
         }
     }
+
+    public Integer getId() {
+        return id;
+    }
+
+    public Integer getReporterId() {
+        return reporterId;
+    }
+
+    public ReportTargetType getTargetType() {
+        return targetType;
+    }
+
+    public Integer getTargetId() {
+        return targetId;
+    }
+
+    public Integer getReasonType() {
+        return reasonType;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public ReportStatus getStatus() {
+        return status;
+    }
+
+    public Integer getProcessedBy() {
+        return processedBy;
+    }
+
+    public LocalDateTime getProcessedAt() {
+        return processedAt;
+    }
+
+    public void process(Integer adminId) {
+        status = ReportStatus.PROCESSED;
+        processedBy = adminId;
+        processedAt = LocalDateTime.now();
+    }
 }

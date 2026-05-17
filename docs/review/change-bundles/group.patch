@@ -1,0 +1,694 @@
+﻿diff --git a/backend/src/main/java/com/academicshare/backend/group/domain/Group.java b/backend/src/main/java/com/academicshare/backend/group/domain/Group.java
+index a82a964..fc83f9f 100644
+--- a/backend/src/main/java/com/academicshare/backend/group/domain/Group.java
++++ b/backend/src/main/java/com/academicshare/backend/group/domain/Group.java
+@@ -57,4 +57,20 @@ public class Group {
+     public Integer getId() {
+         return id;
+     }
++
++    public String getGroupCode() {
++        return groupCode;
++    }
++
++    public String getName() {
++        return name;
++    }
++
++    public Integer getLeaderId() {
++        return leaderId;
++    }
++
++    public LocalDateTime getCreatedAt() {
++        return createdAt;
++    }
+ }
+diff --git a/backend/src/main/java/com/academicshare/backend/group/domain/GroupMember.java b/backend/src/main/java/com/academicshare/backend/group/domain/GroupMember.java
+index dfcfea2..56204b5 100644
+--- a/backend/src/main/java/com/academicshare/backend/group/domain/GroupMember.java
++++ b/backend/src/main/java/com/academicshare/backend/group/domain/GroupMember.java
+@@ -50,4 +50,20 @@ public class GroupMember {
+             joinedAt = LocalDateTime.now();
+         }
+     }
++
++    public Integer getGroupId() {
++        return groupId;
++    }
++
++    public Integer getUserId() {
++        return userId;
++    }
++
++    public GroupMemberRole getRole() {
++        return role;
++    }
++
++    public LocalDateTime getJoinedAt() {
++        return joinedAt;
++    }
+ }
+diff --git a/backend/src/main/java/com/academicshare/backend/group/repository/GroupRepository.java b/backend/src/main/java/com/academicshare/backend/group/repository/GroupRepository.java
+index 89656aa..988e352 100644
+--- a/backend/src/main/java/com/academicshare/backend/group/repository/GroupRepository.java
++++ b/backend/src/main/java/com/academicshare/backend/group/repository/GroupRepository.java
+@@ -1,7 +1,24 @@
+ package com.academicshare.backend.group.repository;
+ 
+ import com.academicshare.backend.group.domain.Group;
++import java.util.List;
++import java.util.Optional;
+ import org.springframework.data.jpa.repository.JpaRepository;
++import org.springframework.data.jpa.repository.Query;
++import org.springframework.data.repository.query.Param;
+ 
+ public interface GroupRepository extends JpaRepository<Group, Integer> {
++
++    Optional<Group> findByGroupCode(String groupCode);
++
++    boolean existsByGroupCode(String groupCode);
++
++    @Query(value = """
++            select g.*
++            from `groups` g
++            join group_members gm on gm.group_id = g.id
++            where gm.user_id = :userId
++            order by g.created_at asc, g.id asc
++            """, nativeQuery = true)
++    List<Group> findJoinedGroupsByUserId(@Param("userId") Integer userId);
+ }
+diff --git a/backend/src/main/java/com/academicshare/backend/group/repository/GroupMemberRepository.java b/backend/src/main/java/com/academicshare/backend/group/repository/GroupMemberRepository.java
+index 920a3a6..44e6d26 100644
+--- a/backend/src/main/java/com/academicshare/backend/group/repository/GroupMemberRepository.java
++++ b/backend/src/main/java/com/academicshare/backend/group/repository/GroupMemberRepository.java
+@@ -2,7 +2,12 @@ package com.academicshare.backend.group.repository;
+ 
+ import com.academicshare.backend.group.domain.GroupMember;
+ import com.academicshare.backend.group.domain.GroupMemberId;
++import java.util.List;
+ import org.springframework.data.jpa.repository.JpaRepository;
+ 
+ public interface GroupMemberRepository extends JpaRepository<GroupMember, GroupMemberId> {
++
++    boolean existsByGroupIdAndUserId(Integer groupId, Integer userId);
++
++    List<GroupMember> findByGroupIdOrderByJoinedAtAscUserIdAsc(Integer groupId);
+ }
+diff --git a/backend/src/main/java/com/academicshare/backend/group/controller/GroupController.java b/backend/src/main/java/com/academicshare/backend/group/controller/GroupController.java
+new file mode 100644
+index 0000000..f43d11f
+--- /dev/null
++++ b/backend/src/main/java/com/academicshare/backend/group/controller/GroupController.java
+@@ -0,0 +1,64 @@
++package com.academicshare.backend.group.controller;
++
++import com.academicshare.backend.common.error.ErrorCode;
++import com.academicshare.backend.common.exception.ApiException;
++import com.academicshare.backend.common.response.ItemsResponse;
++import com.academicshare.backend.group.dto.GroupCreateRequest;
++import com.academicshare.backend.group.dto.GroupCreateResponse;
++import com.academicshare.backend.group.dto.GroupDetailResponse;
++import com.academicshare.backend.group.dto.GroupJoinRequest;
++import com.academicshare.backend.group.dto.GroupMemberResponse;
++import com.academicshare.backend.group.dto.GroupResponse;
++import com.academicshare.backend.group.service.GroupService;
++import com.fasterxml.jackson.databind.JsonNode;
++import org.springframework.http.HttpStatus;
++import org.springframework.http.MediaType;
++import org.springframework.web.bind.annotation.GetMapping;
++import org.springframework.web.bind.annotation.PathVariable;
++import org.springframework.web.bind.annotation.PostMapping;
++import org.springframework.web.bind.annotation.RequestBody;
++import org.springframework.web.bind.annotation.ResponseStatus;
++import org.springframework.web.bind.annotation.RestController;
++
++@RestController
++public class GroupController {
++
++    private final GroupService groupService;
++
++    public GroupController(GroupService groupService) {
++        this.groupService = groupService;
++    }
++
++    @GetMapping("/groups")
++    public ItemsResponse<GroupResponse> getMyGroups() {
++        return new ItemsResponse<>(groupService.getMyGroups());
++    }
++
++    @PostMapping(value = "/groups", consumes = MediaType.APPLICATION_JSON_VALUE)
++    @ResponseStatus(HttpStatus.CREATED)
++    public GroupCreateResponse createGroup(@RequestBody JsonNode request) {
++        return groupService.createGroup(new GroupCreateRequest(textValue(request, "name")));
++    }
++
++    @PostMapping(value = "/groups/join", consumes = MediaType.APPLICATION_JSON_VALUE)
++    @ResponseStatus(HttpStatus.CREATED)
++    public GroupMemberResponse joinGroup(@RequestBody JsonNode request) {
++        return groupService.joinGroup(new GroupJoinRequest(textValue(request, "group_code")));
++    }
++
++    @GetMapping("/groups/{groupId}")
++    public GroupDetailResponse getGroupDetail(@PathVariable Integer groupId) {
++        return groupService.getGroupDetail(groupId);
++    }
++
++    private String textValue(JsonNode request, String fieldName) {
++        JsonNode value = request.get(fieldName);
++        if (value == null || value.isNull()) {
++            return null;
++        }
++        if (!value.isTextual()) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++        return value.asText();
++    }
++}
+diff --git a/backend/src/main/java/com/academicshare/backend/group/dto/GroupCreateRequest.java b/backend/src/main/java/com/academicshare/backend/group/dto/GroupCreateRequest.java
+new file mode 100644
+index 0000000..2449aab
+--- /dev/null
++++ b/backend/src/main/java/com/academicshare/backend/group/dto/GroupCreateRequest.java
+@@ -0,0 +1,6 @@
++package com.academicshare.backend.group.dto;
++
++public record GroupCreateRequest(
++        String name
++) {
++}
+diff --git a/backend/src/main/java/com/academicshare/backend/group/dto/GroupCreateResponse.java b/backend/src/main/java/com/academicshare/backend/group/dto/GroupCreateResponse.java
+new file mode 100644
+index 0000000..9917c4a
+--- /dev/null
++++ b/backend/src/main/java/com/academicshare/backend/group/dto/GroupCreateResponse.java
+@@ -0,0 +1,17 @@
++package com.academicshare.backend.group.dto;
++
++import com.academicshare.backend.group.domain.Group;
++import com.academicshare.backend.group.domain.GroupMember;
++
++public record GroupCreateResponse(
++        GroupResponse group,
++        GroupMemberResponse membership
++) {
++
++    public static GroupCreateResponse from(Group group, GroupMember membership) {
++        return new GroupCreateResponse(
++                GroupResponse.from(group),
++                GroupMemberResponse.from(membership)
++        );
++    }
++}
+diff --git a/backend/src/main/java/com/academicshare/backend/group/dto/GroupDetailResponse.java b/backend/src/main/java/com/academicshare/backend/group/dto/GroupDetailResponse.java
+new file mode 100644
+index 0000000..74597f0
+--- /dev/null
++++ b/backend/src/main/java/com/academicshare/backend/group/dto/GroupDetailResponse.java
+@@ -0,0 +1,24 @@
++package com.academicshare.backend.group.dto;
++
++import com.academicshare.backend.group.domain.Group;
++import com.academicshare.backend.group.domain.GroupMember;
++import java.util.List;
++
++public record GroupDetailResponse(
++        GroupResponse group,
++        List<GroupMemberResponse> members
++) {
++
++    public GroupDetailResponse {
++        members = members == null ? List.of() : List.copyOf(members);
++    }
++
++    public static GroupDetailResponse from(Group group, List<GroupMember> members) {
++        return new GroupDetailResponse(
++                GroupResponse.from(group),
++                members.stream()
++                        .map(GroupMemberResponse::from)
++                        .toList()
++        );
++    }
++}
+diff --git a/backend/src/main/java/com/academicshare/backend/group/dto/GroupJoinRequest.java b/backend/src/main/java/com/academicshare/backend/group/dto/GroupJoinRequest.java
+new file mode 100644
+index 0000000..acc07d6
+--- /dev/null
++++ b/backend/src/main/java/com/academicshare/backend/group/dto/GroupJoinRequest.java
+@@ -0,0 +1,6 @@
++package com.academicshare.backend.group.dto;
++
++public record GroupJoinRequest(
++        String groupCode
++) {
++}
+diff --git a/backend/src/main/java/com/academicshare/backend/group/dto/GroupMemberResponse.java b/backend/src/main/java/com/academicshare/backend/group/dto/GroupMemberResponse.java
+new file mode 100644
+index 0000000..6862d2d
+--- /dev/null
++++ b/backend/src/main/java/com/academicshare/backend/group/dto/GroupMemberResponse.java
+@@ -0,0 +1,22 @@
++package com.academicshare.backend.group.dto;
++
++import com.academicshare.backend.group.domain.GroupMember;
++import com.academicshare.backend.group.domain.GroupMemberRole;
++import java.time.LocalDateTime;
++
++public record GroupMemberResponse(
++        Integer groupId,
++        Integer userId,
++        GroupMemberRole role,
++        LocalDateTime joinedAt
++) {
++
++    public static GroupMemberResponse from(GroupMember groupMember) {
++        return new GroupMemberResponse(
++                groupMember.getGroupId(),
++                groupMember.getUserId(),
++                groupMember.getRole(),
++                groupMember.getJoinedAt()
++        );
++    }
++}
+diff --git a/backend/src/main/java/com/academicshare/backend/group/dto/GroupResponse.java b/backend/src/main/java/com/academicshare/backend/group/dto/GroupResponse.java
+new file mode 100644
+index 0000000..880d1b5
+--- /dev/null
++++ b/backend/src/main/java/com/academicshare/backend/group/dto/GroupResponse.java
+@@ -0,0 +1,23 @@
++package com.academicshare.backend.group.dto;
++
++import com.academicshare.backend.group.domain.Group;
++import java.time.LocalDateTime;
++
++public record GroupResponse(
++        Integer id,
++        String groupCode,
++        String name,
++        Integer leaderId,
++        LocalDateTime createdAt
++) {
++
++    public static GroupResponse from(Group group) {
++        return new GroupResponse(
++                group.getId(),
++                group.getGroupCode(),
++                group.getName(),
++                group.getLeaderId(),
++                group.getCreatedAt()
++        );
++    }
++}
+diff --git a/backend/src/main/java/com/academicshare/backend/group/service/GroupService.java b/backend/src/main/java/com/academicshare/backend/group/service/GroupService.java
+new file mode 100644
+index 0000000..8e77b3e
+--- /dev/null
++++ b/backend/src/main/java/com/academicshare/backend/group/service/GroupService.java
+@@ -0,0 +1,133 @@
++package com.academicshare.backend.group.service;
++
++import com.academicshare.backend.auth.session.CurrentUserProvider;
++import com.academicshare.backend.common.error.ErrorCode;
++import com.academicshare.backend.common.exception.ApiException;
++import com.academicshare.backend.group.domain.Group;
++import com.academicshare.backend.group.domain.GroupMember;
++import com.academicshare.backend.group.domain.GroupMemberRole;
++import com.academicshare.backend.group.dto.GroupCreateRequest;
++import com.academicshare.backend.group.dto.GroupCreateResponse;
++import com.academicshare.backend.group.dto.GroupDetailResponse;
++import com.academicshare.backend.group.dto.GroupJoinRequest;
++import com.academicshare.backend.group.dto.GroupMemberResponse;
++import com.academicshare.backend.group.dto.GroupResponse;
++import com.academicshare.backend.group.repository.GroupMemberRepository;
++import com.academicshare.backend.group.repository.GroupRepository;
++import java.util.List;
++import java.util.UUID;
++import org.springframework.dao.DataIntegrityViolationException;
++import org.springframework.stereotype.Service;
++import org.springframework.transaction.annotation.Transactional;
++import org.springframework.util.StringUtils;
++
++@Service
++public class GroupService {
++
++    private static final int MAX_NAME_LENGTH = 100;
++    private static final int MAX_GROUP_CODE_LENGTH = 255;
++    private static final int GROUP_CODE_GENERATION_ATTEMPTS = 5;
++
++    private final GroupRepository groupRepository;
++    private final GroupMemberRepository groupMemberRepository;
++    private final CurrentUserProvider currentUserProvider;
++
++    public GroupService(
++            GroupRepository groupRepository,
++            GroupMemberRepository groupMemberRepository,
++            CurrentUserProvider currentUserProvider
++    ) {
++        this.groupRepository = groupRepository;
++        this.groupMemberRepository = groupMemberRepository;
++        this.currentUserProvider = currentUserProvider;
++    }
++
++    @Transactional(readOnly = true)
++    public List<GroupResponse> getMyGroups() {
++        return groupRepository.findJoinedGroupsByUserId(currentUserProvider.getCurrentUserId())
++                .stream()
++                .map(GroupResponse::from)
++                .toList();
++    }
++
++    @Transactional
++    public GroupCreateResponse createGroup(GroupCreateRequest request) {
++        validateName(request.name());
++
++        Integer currentUserId = currentUserProvider.getCurrentUserId();
++        Group group = groupRepository.saveAndFlush(new Group(
++                generateGroupCode(),
++                request.name(),
++                currentUserId
++        ));
++        GroupMember membership = groupMemberRepository.saveAndFlush(new GroupMember(
++                group.getId(),
++                currentUserId,
++                GroupMemberRole.LEADER
++        ));
++
++        return GroupCreateResponse.from(group, membership);
++    }
++
++    @Transactional
++    public GroupMemberResponse joinGroup(GroupJoinRequest request) {
++        Group group = findGroupByCode(request.groupCode());
++        Integer currentUserId = currentUserProvider.getCurrentUserId();
++
++        if (groupMemberRepository.existsByGroupIdAndUserId(group.getId(), currentUserId)) {
++            throw new ApiException(ErrorCode.CONFLICT);
++        }
++
++        try {
++            GroupMember membership = groupMemberRepository.saveAndFlush(new GroupMember(
++                    group.getId(),
++                    currentUserId,
++                    GroupMemberRole.MEMBER
++            ));
++            return GroupMemberResponse.from(membership);
++        } catch (DataIntegrityViolationException exception) {
++            throw new ApiException(ErrorCode.CONFLICT);
++        }
++    }
++
++    @Transactional(readOnly = true)
++    public GroupDetailResponse getGroupDetail(Integer groupId) {
++        Group group = groupRepository.findById(groupId)
++                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
++
++        if (!groupMemberRepository.existsByGroupIdAndUserId(groupId, currentUserProvider.getCurrentUserId())) {
++            throw new ApiException(ErrorCode.ACCESS_DENIED);
++        }
++
++        return GroupDetailResponse.from(
++                group,
++                groupMemberRepository.findByGroupIdOrderByJoinedAtAscUserIdAsc(groupId)
++        );
++    }
++
++    private Group findGroupByCode(String groupCode) {
++        if (!StringUtils.hasText(groupCode) || groupCode.length() > MAX_GROUP_CODE_LENGTH) {
++            throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);
++        }
++
++        return groupRepository.findByGroupCode(groupCode)
++                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
++    }
++
++    private String generateGroupCode() {
++        for (int attempt = 0; attempt < GROUP_CODE_GENERATION_ATTEMPTS; attempt++) {
++            String groupCode = UUID.randomUUID().toString();
++            if (!groupRepository.existsByGroupCode(groupCode)) {
++                return groupCode;
++            }
++        }
++
++        throw new ApiException(ErrorCode.CONFLICT);
++    }
++
++    private void validateName(String name) {
++        if (!StringUtils.hasText(name) || name.length() > MAX_NAME_LENGTH) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++    }
++}
+diff --git a/backend/src/test/java/com/academicshare/backend/group/controller/GroupControllerTest.java b/backend/src/test/java/com/academicshare/backend/group/controller/GroupControllerTest.java
+new file mode 100644
+index 0000000..dde1661
+--- /dev/null
++++ b/backend/src/test/java/com/academicshare/backend/group/controller/GroupControllerTest.java
+@@ -0,0 +1,249 @@
++package com.academicshare.backend.group.controller;
++
++import static org.assertj.core.api.Assertions.assertThat;
++import static org.hamcrest.Matchers.contains;
++import static org.hamcrest.Matchers.not;
++import static org.hamcrest.Matchers.blankOrNullString;
++import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
++import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
++import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
++
++import com.academicshare.backend.auth.session.AuthSessionAttributes;
++import com.academicshare.backend.common.error.ErrorCode;
++import com.academicshare.backend.group.domain.Group;
++import com.academicshare.backend.group.domain.GroupMember;
++import com.academicshare.backend.group.domain.GroupMemberRole;
++import com.academicshare.backend.group.repository.GroupMemberRepository;
++import com.academicshare.backend.group.repository.GroupRepository;
++import com.academicshare.backend.user.domain.User;
++import com.academicshare.backend.user.repository.UserRepository;
++import org.junit.jupiter.api.Test;
++import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
++import org.springframework.boot.test.context.SpringBootTest;
++import org.springframework.http.MediaType;
++import org.springframework.test.context.ActiveProfiles;
++import org.springframework.test.web.servlet.MockMvc;
++import org.springframework.transaction.annotation.Transactional;
++
++@SpringBootTest
++@AutoConfigureMockMvc
++@ActiveProfiles("test")
++@Transactional
++class GroupControllerTest {
++
++    @Autowired
++    private MockMvc mockMvc;
++
++    @Autowired
++    private UserRepository userRepository;
++
++    @Autowired
++    private GroupRepository groupRepository;
++
++    @Autowired
++    private GroupMemberRepository groupMemberRepository;
++
++    @Test
++    void getMyGroupsReturnsOnlyGroupsJoinedByCurrentUser() throws Exception {
++        User currentUser = saveUser("group-list-current", "Group List Current", "group-list-current@example.com");
++        User otherUser = saveUser("group-list-other", "Group List Other", "group-list-other@example.com");
++        Group firstGroup = saveGroup(currentUser, "group-list-first", "First Group");
++        Group secondGroup = saveGroup(otherUser, "group-list-second", "Second Group");
++        Group otherGroup = saveGroup(otherUser, "group-list-other-only", "Other Group");
++        saveMembership(firstGroup, currentUser, GroupMemberRole.LEADER);
++        saveMembership(secondGroup, currentUser, GroupMemberRole.MEMBER);
++        saveMembership(otherGroup, otherUser, GroupMemberRole.LEADER);
++
++        mockMvc.perform(get("/groups")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId()))
++                .andExpect(status().isOk())
++                .andExpect(jsonPath("$.items.length()").value(2))
++                .andExpect(jsonPath("$.items[*].id", contains(firstGroup.getId(), secondGroup.getId())))
++                .andExpect(jsonPath("$.items[0].group_code").value("group-list-first"))
++                .andExpect(jsonPath("$.items[0].name").value("First Group"))
++                .andExpect(jsonPath("$.items[0].leader_id").value(currentUser.getId()))
++                .andExpect(jsonPath("$.items[0].created_at").isNotEmpty());
++    }
++
++    @Test
++    void createGroupReturnsGroupAndLeaderMembership() throws Exception {
++        User currentUser = saveUser("group-create-current", "Group Create Current", "group-create-current@example.com");
++
++        mockMvc.perform(post("/groups")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{\"name\":\"Study Team\"}")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId())
++                        .with(csrf()))
++                .andExpect(status().isCreated())
++                .andExpect(jsonPath("$.group.id").isNumber())
++                .andExpect(jsonPath("$.group.group_code", not(blankOrNullString())))
++                .andExpect(jsonPath("$.group.name").value("Study Team"))
++                .andExpect(jsonPath("$.group.leader_id").value(currentUser.getId()))
++                .andExpect(jsonPath("$.group.created_at").isNotEmpty())
++                .andExpect(jsonPath("$.membership.group_id").isNumber())
++                .andExpect(jsonPath("$.membership.user_id").value(currentUser.getId()))
++                .andExpect(jsonPath("$.membership.role").value(GroupMemberRole.LEADER.name()))
++                .andExpect(jsonPath("$.membership.joined_at").isNotEmpty());
++
++        Group group = groupRepository.findAll().get(0);
++        assertThat(group.getName()).isEqualTo("Study Team");
++        assertThat(group.getLeaderId()).isEqualTo(currentUser.getId());
++        assertThat(group.getGroupCode()).isNotBlank();
++        assertThat(groupMemberRepository.existsByGroupIdAndUserId(group.getId(), currentUser.getId())).isTrue();
++    }
++
++    @Test
++    void createGroupRejectsMissingOrInvalidName() throws Exception {
++        User currentUser = saveUser("group-create-invalid", "Group Create Invalid", "group-create-invalid@example.com");
++        String tooLongName = "a".repeat(101);
++
++        mockMvc.perform(post("/groups")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{}")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId())
++                        .with(csrf()))
++                .andExpect(status().isBadRequest())
++                .andExpect(jsonPath("$.code").value(ErrorCode.VALIDATION_ERROR.name()));
++
++        mockMvc.perform(post("/groups")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{\"name\":\"   \"}")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId())
++                        .with(csrf()))
++                .andExpect(status().isBadRequest())
++                .andExpect(jsonPath("$.code").value(ErrorCode.VALIDATION_ERROR.name()));
++
++        mockMvc.perform(post("/groups")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{\"name\":\"%s\"}".formatted(tooLongName))
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId())
++                        .with(csrf()))
++                .andExpect(status().isBadRequest())
++                .andExpect(jsonPath("$.code").value(ErrorCode.VALIDATION_ERROR.name()));
++    }
++
++    @Test
++    void joinGroupByCodeReturnsMemberMembershipAndRejectsDuplicateOrInvalidCode() throws Exception {
++        User leader = saveUser("group-join-leader", "Group Join Leader", "group-join-leader@example.com");
++        User currentUser = saveUser("group-join-current", "Group Join Current", "group-join-current@example.com");
++        Group group = saveGroup(leader, "join-code", "Join Group");
++        saveMembership(group, leader, GroupMemberRole.LEADER);
++
++        mockMvc.perform(post("/groups/join")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{\"group_code\":\"join-code\"}")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId())
++                        .with(csrf()))
++                .andExpect(status().isCreated())
++                .andExpect(jsonPath("$.group_id").value(group.getId()))
++                .andExpect(jsonPath("$.user_id").value(currentUser.getId()))
++                .andExpect(jsonPath("$.role").value(GroupMemberRole.MEMBER.name()))
++                .andExpect(jsonPath("$.joined_at").isNotEmpty());
++
++        assertThat(groupMemberRepository.existsByGroupIdAndUserId(group.getId(), currentUser.getId())).isTrue();
++
++        mockMvc.perform(post("/groups/join")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{\"group_code\":\"join-code\"}")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId())
++                        .with(csrf()))
++                .andExpect(status().isConflict())
++                .andExpect(jsonPath("$.code").value(ErrorCode.CONFLICT.name()));
++
++        mockMvc.perform(post("/groups/join")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{\"group_code\":\"missing-code\"}")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId())
++                        .with(csrf()))
++                .andExpect(status().isNotFound())
++                .andExpect(jsonPath("$.code").value(ErrorCode.RESOURCE_NOT_FOUND.name()));
++    }
++
++    @Test
++    void getGroupDetailReturnsGroupAndMembersOnlyForMembers() throws Exception {
++        User leader = saveUser("group-detail-leader", "Group Detail Leader", "group-detail-leader@example.com");
++        User member = saveUser("group-detail-member", "Group Detail Member", "group-detail-member@example.com");
++        User outsider = saveUser("group-detail-outsider", "Group Detail Outsider", "group-detail-outsider@example.com");
++        Group group = saveGroup(leader, "detail-code", "Detail Group");
++        saveMembership(group, leader, GroupMemberRole.LEADER);
++        saveMembership(group, member, GroupMemberRole.MEMBER);
++
++        mockMvc.perform(get("/groups/{groupId}", group.getId())
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, member.getId()))
++                .andExpect(status().isOk())
++                .andExpect(jsonPath("$.group.id").value(group.getId()))
++                .andExpect(jsonPath("$.group.group_code").value("detail-code"))
++                .andExpect(jsonPath("$.group.name").value("Detail Group"))
++                .andExpect(jsonPath("$.members.length()").value(2))
++                .andExpect(jsonPath("$.members[0].user_id").value(leader.getId()))
++                .andExpect(jsonPath("$.members[0].role").value(GroupMemberRole.LEADER.name()))
++                .andExpect(jsonPath("$.members[1].user_id").value(member.getId()))
++                .andExpect(jsonPath("$.members[1].role").value(GroupMemberRole.MEMBER.name()));
++
++        mockMvc.perform(get("/groups/{groupId}", group.getId())
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, outsider.getId()))
++                .andExpect(status().isForbidden())
++                .andExpect(jsonPath("$.code").value(ErrorCode.ACCESS_DENIED.name()));
++
++        mockMvc.perform(get("/groups/{groupId}", 999_999)
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, member.getId()))
++                .andExpect(status().isNotFound())
++                .andExpect(jsonPath("$.code").value(ErrorCode.RESOURCE_NOT_FOUND.name()));
++    }
++
++    @Test
++    void groupApiRequiresAuthentication() throws Exception {
++        User leader = saveUser("group-auth-leader", "Group Auth Leader", "group-auth-leader@example.com");
++        Group group = saveGroup(leader, "auth-code", "Auth Group");
++
++        mockMvc.perform(get("/groups"))
++                .andExpect(status().isUnauthorized())
++                .andExpect(jsonPath("$.code").value(ErrorCode.AUTHENTICATION_REQUIRED.name()));
++
++        mockMvc.perform(post("/groups")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{\"name\":\"Auth Group\"}")
++                        .with(csrf()))
++                .andExpect(status().isUnauthorized())
++                .andExpect(jsonPath("$.code").value(ErrorCode.AUTHENTICATION_REQUIRED.name()));
++
++        mockMvc.perform(post("/groups/join")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{\"group_code\":\"auth-code\"}")
++                        .with(csrf()))
++                .andExpect(status().isUnauthorized())
++                .andExpect(jsonPath("$.code").value(ErrorCode.AUTHENTICATION_REQUIRED.name()));
++
++        mockMvc.perform(get("/groups/{groupId}", group.getId()))
++                .andExpect(status().isUnauthorized())
++                .andExpect(jsonPath("$.code").value(ErrorCode.AUTHENTICATION_REQUIRED.name()));
++    }
++
++    private User saveUser(String loginId, String name, String emailAddress) {
++        return userRepository.saveAndFlush(new User(
++                loginId,
++                "encoded-password",
++                name,
++                emailAddress
++        ));
++    }
++
++    private Group saveGroup(User leader, String groupCode, String name) {
++        return groupRepository.saveAndFlush(new Group(
++                groupCode,
++                name,
++                leader.getId()
++        ));
++    }
++
++    private GroupMember saveMembership(Group group, User user, GroupMemberRole role) {
++        return groupMemberRepository.saveAndFlush(new GroupMember(
++                group.getId(),
++                user.getId(),
++                role
++        ));
++    }
++}
