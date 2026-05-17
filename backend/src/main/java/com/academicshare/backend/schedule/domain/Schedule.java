@@ -14,6 +14,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Entity
 @Table(name = "schedules")
@@ -83,5 +84,77 @@ public class Schedule {
     @AssertTrue(message = "end_at must be greater than or equal to start_at")
     boolean isPeriodValid() {
         return startAt == null || endAt == null || !endAt.isBefore(startAt);
+    }
+
+    public Integer getId() {
+        return id;
+    }
+
+    public Integer getUserId() {
+        return userId;
+    }
+
+    public Integer getGroupId() {
+        return groupId;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public LocalDateTime getStartAt() {
+        return startAt;
+    }
+
+    public LocalDateTime getEndAt() {
+        return endAt;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public Integer getType() {
+        return type;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public boolean isPersonal() {
+        return groupId == null;
+    }
+
+    public boolean isOwnedBy(Integer userId) {
+        return Objects.equals(this.userId, userId);
+    }
+
+    public void changeTitle(String title) {
+        this.title = title;
+    }
+
+    public void changeStartAt(LocalDateTime startAt) {
+        this.startAt = startAt;
+    }
+
+    public void changeEndAt(LocalDateTime endAt) {
+        this.endAt = endAt;
+    }
+
+    public void changeDescription(String description) {
+        this.description = description;
+    }
+
+    public void changeType(Integer type) {
+        this.type = type;
+    }
+
+    public void markUpdated() {
+        this.updatedAt = LocalDateTime.now();
     }
 }
