@@ -50,7 +50,7 @@
 
 - 논리/물리 스키마의 테이블, 주요 컬럼, PK/FK/Unique/Check 제약이 정규화 DB 계약에 반영되어 있다.
 - `users` 개인정보성 컬럼 nullable 정책과 `status = ACTIVE/DELETED`, `role = USER/ADMIN` 제약이 반영되어 있다.
-- `comments.parent_comment`, `notification.commented_id`, `schedules.group_id`, `report.target_type/target_id`의 nullable/다형 참조 정책이 원본과 일치한다.
+- `comments.parent_comment`, `schedules.group_id`, `report.target_type/target_id`의 nullable/다형 참조 정책과 `notification.commented_id`의 nullable navigation hint 정책이 원본과 일치한다.
 - `post`, `comments`, `groups`, `schedules`에 원본에 없는 삭제 상태 컬럼을 추가하지 않았다.
 
 ### Acceptance Criteria

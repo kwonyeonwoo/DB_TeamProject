@@ -50,4 +50,24 @@ public class GroupMember {
             joinedAt = LocalDateTime.now();
         }
     }
+
+    public Integer getGroupId() {
+        return groupId;
+    }
+
+    public Integer getUserId() {
+        return userId;
+    }
+
+    public GroupMemberRole getRole() {
+        return role;
+    }
+
+    public LocalDateTime getJoinedAt() {
+        return joinedAt;
+    }
+
+    public void changeRole(GroupMemberRole role) {
+        this.role = role;
+    }
 }

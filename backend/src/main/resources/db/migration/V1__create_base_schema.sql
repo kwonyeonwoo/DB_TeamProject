@@ -129,8 +129,7 @@ CREATE TABLE notification (
     commented_id INT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_notification_post_id FOREIGN KEY (commented_post_id) REFERENCES post (id) ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT fk_notification_user_id FOREIGN KEY (commented_user_id) REFERENCES users (id) ON DELETE NO ACTION ON UPDATE CASCADE,
-    CONSTRAINT fk_notification_comment_id FOREIGN KEY (commented_id) REFERENCES comments (id) ON DELETE CASCADE ON UPDATE CASCADE
+    CONSTRAINT fk_notification_user_id FOREIGN KEY (commented_user_id) REFERENCES users (id) ON DELETE NO ACTION ON UPDATE CASCADE
 );
 
 CREATE INDEX idx_users_status ON users (status);

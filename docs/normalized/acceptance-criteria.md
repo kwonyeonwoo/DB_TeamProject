@@ -9,6 +9,8 @@
 - 회원 탈퇴 시 개인정보성 컬럼은 즉시 변경하지 않고, `deleted_at`으로부터 6개월 후 NULL 또는 식별 불가 값으로 변경하는 기준으로 검증한다.
 - 신고 생성은 원본 API 기준 USER 권한으로 검증한다. ADMIN이 `POST /api/reports`를 호출하면 권한 실패로 본다.
 - 자기 게시글/댓글에 댓글 또는 대댓글을 작성한 경우 알림을 생성하지 않는 기준으로 검증한다.
+- 알림의 `comment_content`는 생성 시점의 댓글/대댓글 내용 스냅샷이며 원본 댓글/대댓글 수정 또는 삭제 후에도 변경하지 않는 기준으로 검증한다.
+- `AUTH-001` 회원 가입과 `AUTH-002` 로그인을 제외한 `POST`, `PATCH`, `DELETE` API는 CSRF 토큰을 요구하는 기준으로 검증한다.
 
 ## 1. 공통 기준
 
@@ -31,7 +33,14 @@
 - When 서버가 요청을 처리한다
 - Then `403`을 반환한다
 
-### AC-COMMON-004. 기능별 API 오류 조건 추적
+### AC-COMMON-004. CSRF 토큰
+
+- Given 인증된 세션이 있는 사용자가 `AUTH-001`과 `AUTH-002`를 제외한 `POST`, `PATCH`, `DELETE` API를 호출한다
+- When CSRF 토큰이 누락되거나 일치하지 않는다
+- Then `403`을 반환한다
+- And 오류 응답의 `code`는 `ACCESS_DENIED`다
+
+### AC-COMMON-005. 기능별 API 오류 조건 추적
 
 - Given API 계약의 기능별 오류 조건을 acceptance criteria에 반영한다
 - When 기능 테스트 범위를 검토한다
@@ -41,7 +50,7 @@
 |---|---|
 | AUTH-001 | `400` 필수/형식 오류, `409` `login_id` 중복, `409` `email_address` 중복 |
 | AUTH-002 | `400` 필수 누락, `401` 로그인 실패, `403` 탈퇴 계정 |
-| AUTH-003 | `401` 인증되지 않음 |
+| AUTH-003 | `401` 인증되지 않음, `403` CSRF 토큰 누락/불일치 |
 | USER-001 | `401` 인증되지 않음 |
 | USER-002 | `400` 수정 필드 없음/동일값/`current_password` 누락, `401` 인증되지 않음, `403` `current_password` 불일치, `409` 이메일 중복 |
 | USER-003 | `401` 인증되지 않음 |
@@ -63,7 +72,7 @@
 | NOTI-001 | `403` 다른 회원 알림 접근 |
 | CAL-001 | `400` 날짜 형식 오류, `400` `end_at < start_at`, `401` 인증 없음, `403` 다른 회원 일정 접근 |
 | CAL-002 | `400` 필수 누락, `400` `type`이 1..5 밖, `400` 종료가 시작보다 빠름 |
-| CAL-003 | `400` `type`이 1..5 밖, `400` 종료가 시작보다 빠름, `403` 다른 회원 일정 접근, `404` 일정 없음 |
+| CAL-003 | `400` 수정 필드 없음, `400` `type`이 1..5 밖, `400` 종료가 시작보다 빠름, `403` 다른 회원 일정 접근, `404` 일정 없음 |
 | CAL-004 | `403` 다른 회원 일정 접근, `404` 일정 없음 |
 | GROUP-001 | `401` 인증 없음 |
 | GROUP-002 | `400` 그룹명 누락 |
@@ -73,6 +82,16 @@
 | GCAL-002 | `400` 필수 누락, `400` `type`이 1..5 밖, `400` 종료가 시작보다 빠름, `403` 그룹원이 아님, `404` 그룹 없음 |
 | GCAL-003 | `400` `type`이 1..5 밖, `400` 종료가 시작보다 빠름, `403` 그룹원이 아님, `404` 그룹 또는 일정 없음 |
 | GCAL-004 | `403` 그룹원이 아님, `404` 그룹 또는 일정 없음 |
+
+위 표에 별도 표기되지 않은 상태 변경 API도 `AC-COMMON-004`의 CSRF 실패 조건을 공통 실패 케이스로 포함한다.
+
+### AC-COMMON-006. 기능 변경 범위 분리
+
+- Given 검증 대상 Feature ID가 정해져 있다
+- When backend 변경사항과 관련 테스트를 검토한다
+- Then 변경 파일은 해당 Feature ID의 구현/테스트 또는 명시된 공통 의존 변경에만 속해야 한다
+- And 타 Feature ID 구현/테스트가 포함되면 범위 초과 이슈로 기록한다
+- And 분리 patch 또는 별도 리뷰 문서가 없으면 승인하지 않는다
 
 ## 2. 인증 및 회원
 
@@ -134,6 +153,11 @@ Failures:
 - Given 인증되지 않은 사용자가 있다
 - When `POST /api/auth/logout`을 호출한다
 - Then `401`을 반환한다
+
+- Given 인증된 회원 세션이 있다
+- And CSRF 토큰이 누락되거나 일치하지 않는다
+- When `POST /api/auth/logout`을 호출한다
+- Then `403`을 반환한다
 
 ### USER-001/USER-002. 내 정보 조회 및 수정
 
@@ -248,10 +272,12 @@ Navigation data:
 - Given 댓글 알림이다
 - When 알림을 조회한다
 - Then `commented_post_id`가 대상 게시글이고 `commented_id`는 NULL이다
+- And `comment_content`는 알림 생성 시점의 댓글 내용이다
 
 - Given 대댓글 알림이다
 - When 알림을 조회한다
 - Then `commented_post_id`와 부모 댓글 id인 `commented_id`가 반환된다
+- And `comment_content`는 알림 생성 시점의 대댓글 내용이다
 
 Authorization failure:
 
@@ -472,7 +498,8 @@ Failures:
 - Given 댓글 작성자가 삭제한다
 - When `DELETE /api/comments/{comment_id}`를 호출한다
 - Then `204`를 반환한다
-- And 해당 댓글의 대댓글과 알림은 FK cascade 정책에 따라 함께 삭제된다
+- And 일반 댓글 삭제 시 해당 댓글의 대댓글은 FK cascade 정책에 따라 함께 삭제된다
+- And 삭제 전 생성된 알림은 유지되고 `comment_content`는 변경되지 않는다
 - And 해당 댓글 또는 함께 삭제된 대댓글을 대상으로 생성된 신고 이력은 유지된다
 
 - Given 작성자가 아닌 회원이 수정 또는 삭제한다
@@ -593,6 +620,10 @@ Failures:
 - When `PATCH /api/me/schedules/{schedule_id}`를 호출한다
 - Then `200`과 수정된 Schedule을 반환한다
 - And `updated_at`이 기록된다
+
+- Given 개인 일정 수정 요청에 수정 필드가 없다
+- When `PATCH /api/me/schedules/{schedule_id}`를 호출한다
+- Then `400`을 반환한다
 
 - Given 본인 개인 일정이 있다
 - When `DELETE /api/me/schedules/{schedule_id}`를 호출한다

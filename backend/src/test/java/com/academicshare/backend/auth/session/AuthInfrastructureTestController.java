@@ -16,7 +16,7 @@ class AuthInfrastructureTestController {
         this.currentUserProvider = currentUserProvider;
     }
 
-    @GetMapping("/users/me")
+    @GetMapping("/test/current-user")
     Map<String, Object> currentUser() {
         AuthenticatedUser currentUser = currentUserProvider.getCurrentUser();
         return Map.of(
@@ -25,7 +25,7 @@ class AuthInfrastructureTestController {
         );
     }
 
-    @GetMapping("/admin/reports")
+    @GetMapping("/test/admin/reports")
     ItemsResponse<String> adminOnly() {
         currentUserProvider.requireRole(UserRole.ADMIN);
         return new ItemsResponse<>(List.of("report"));

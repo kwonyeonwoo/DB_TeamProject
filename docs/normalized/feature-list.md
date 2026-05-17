@@ -16,6 +16,12 @@
 - P1: 핵심 기능 보조 흐름
 - P2: 관리자/운영 또는 후속 검증 흐름
 
+Feature ID 소유권 규칙:
+
+- Feature List의 Feature ID가 구현/검증 소유권 기준이다.
+- 관련 API 또는 DB 테이블이 겹치더라도 구현 대상 Feature ID가 다르면 같은 변경 묶음에 섞지 않는다.
+- `CAL-001..CAL-004` 검증에는 `schedule` 개인 일정 구현/테스트만 포함하고, REPORT/POST/COMMENT/Auth-test 변경은 별도 검증 단위로 분리한다.
+
 | 기능 ID | 기능명 | 관련 요구사항 | 관련 화면/플로우 | 관련 API | 관련 DB 테이블 | 우선순위 |
 |---|---|---|---|---|---|---|
 | AUTH-001 | 회원 가입 | 1-1, 1-5 | SC-02, UF-02 | `POST /api/auth/signup` | `users` | P0 |

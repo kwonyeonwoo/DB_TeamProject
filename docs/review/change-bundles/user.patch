@@ -1,0 +1,849 @@
+﻿diff --git a/backend/src/main/java/com/academicshare/backend/user/domain/User.java b/backend/src/main/java/com/academicshare/backend/user/domain/User.java
+index 92e5172..526e85b 100644
+--- a/backend/src/main/java/com/academicshare/backend/user/domain/User.java
++++ b/backend/src/main/java/com/academicshare/backend/user/domain/User.java
+@@ -114,4 +114,28 @@ public class User {
+     public UserRole getRole() {
+         return role;
+     }
++
++    public void changeName(String name) {
++        this.name = name;
++    }
++
++    public void changeEmailAddress(String emailAddress) {
++        this.emailAddress = emailAddress;
++    }
++
++    public void changePassword(String password) {
++        this.password = password;
++    }
++
++    public void markDeleted(LocalDateTime deletedAt) {
++        this.status = UserStatus.DELETED;
++        this.deletedAt = deletedAt;
++    }
++
++    public void clearPersonalData() {
++        this.loginId = null;
++        this.password = null;
++        this.name = null;
++        this.emailAddress = null;
++    }
+ }
+diff --git a/backend/src/main/java/com/academicshare/backend/user/repository/UserRepository.java b/backend/src/main/java/com/academicshare/backend/user/repository/UserRepository.java
+index e65007b..3933a51 100644
+--- a/backend/src/main/java/com/academicshare/backend/user/repository/UserRepository.java
++++ b/backend/src/main/java/com/academicshare/backend/user/repository/UserRepository.java
+@@ -1,6 +1,9 @@
+ package com.academicshare.backend.user.repository;
+ 
+ import com.academicshare.backend.user.domain.User;
++import com.academicshare.backend.user.domain.UserStatus;
++import java.time.LocalDateTime;
++import java.util.List;
+ import java.util.Optional;
+ import org.springframework.data.jpa.repository.JpaRepository;
+ 
+@@ -10,5 +13,9 @@ public interface UserRepository extends JpaRepository<User, Integer> {
+ 
+     boolean existsByEmailAddress(String emailAddress);
+ 
++    boolean existsByEmailAddressAndIdNot(String emailAddress, Integer id);
++
+     Optional<User> findByLoginId(String loginId);
++
++    List<User> findByStatusAndDeletedAtLessThanEqual(UserStatus status, LocalDateTime deletedAt);
+ }
+diff --git a/backend/src/main/java/com/academicshare/backend/user/controller/UserController.java b/backend/src/main/java/com/academicshare/backend/user/controller/UserController.java
+new file mode 100644
+index 0000000..c543dce
+--- /dev/null
++++ b/backend/src/main/java/com/academicshare/backend/user/controller/UserController.java
+@@ -0,0 +1,70 @@
++package com.academicshare.backend.user.controller;
++
++import com.academicshare.backend.auth.dto.UserResponse;
++import com.academicshare.backend.common.error.ErrorCode;
++import com.academicshare.backend.common.exception.ApiException;
++import com.academicshare.backend.user.dto.UserUpdateRequest;
++import com.academicshare.backend.user.service.UserService;
++import com.fasterxml.jackson.databind.JsonNode;
++import jakarta.servlet.http.HttpServletRequest;
++import jakarta.servlet.http.HttpSession;
++import org.springframework.http.ResponseEntity;
++import org.springframework.web.bind.annotation.DeleteMapping;
++import org.springframework.web.bind.annotation.GetMapping;
++import org.springframework.web.bind.annotation.PatchMapping;
++import org.springframework.web.bind.annotation.RequestBody;
++import org.springframework.web.bind.annotation.RequestMapping;
++import org.springframework.web.bind.annotation.RestController;
++
++@RestController
++@RequestMapping("/users/me")
++public class UserController {
++
++    private final UserService userService;
++
++    public UserController(UserService userService) {
++        this.userService = userService;
++    }
++
++    @GetMapping
++    public UserResponse getMe() {
++        return UserResponse.from(userService.getMe());
++    }
++
++    @PatchMapping
++    public UserResponse updateMe(@RequestBody JsonNode request) {
++        return UserResponse.from(userService.updateMe(new UserUpdateRequest(
++                textValue(request, "name"),
++                request.has("name"),
++                textValue(request, "email_address"),
++                request.has("email_address"),
++                textValue(request, "current_password"),
++                request.has("current_password"),
++                textValue(request, "new_password"),
++                request.has("new_password")
++        )));
++    }
++
++    @DeleteMapping
++    public ResponseEntity<Void> deleteMe(HttpServletRequest request) {
++        userService.deleteMe();
++
++        HttpSession session = request.getSession(false);
++        if (session != null) {
++            session.invalidate();
++        }
++
++        return ResponseEntity.noContent().build();
++    }
++
++    private String textValue(JsonNode request, String fieldName) {
++        JsonNode value = request.get(fieldName);
++        if (value == null || value.isNull()) {
++            return null;
++        }
++        if (!value.isTextual()) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++        return value.asText();
++    }
++}
+diff --git a/backend/src/main/java/com/academicshare/backend/user/dto/UserUpdateRequest.java b/backend/src/main/java/com/academicshare/backend/user/dto/UserUpdateRequest.java
+new file mode 100644
+index 0000000..41677c3
+--- /dev/null
++++ b/backend/src/main/java/com/academicshare/backend/user/dto/UserUpdateRequest.java
+@@ -0,0 +1,17 @@
++package com.academicshare.backend.user.dto;
++
++public record UserUpdateRequest(
++        String name,
++        boolean nameProvided,
++        String emailAddress,
++        boolean emailAddressProvided,
++        String currentPassword,
++        boolean currentPasswordProvided,
++        String newPassword,
++        boolean newPasswordProvided
++) {
++
++    public boolean hasAnyUpdateField() {
++        return nameProvided || emailAddressProvided || newPasswordProvided;
++    }
++}
+diff --git a/backend/src/main/java/com/academicshare/backend/user/service/UserService.java b/backend/src/main/java/com/academicshare/backend/user/service/UserService.java
+new file mode 100644
+index 0000000..e992552
+--- /dev/null
++++ b/backend/src/main/java/com/academicshare/backend/user/service/UserService.java
+@@ -0,0 +1,189 @@
++package com.academicshare.backend.user.service;
++
++import com.academicshare.backend.auth.session.CurrentUserProvider;
++import com.academicshare.backend.common.error.ErrorCode;
++import com.academicshare.backend.common.exception.ApiException;
++import com.academicshare.backend.group.domain.Group;
++import com.academicshare.backend.group.domain.GroupMember;
++import com.academicshare.backend.group.domain.GroupMemberRole;
++import com.academicshare.backend.group.repository.GroupMemberRepository;
++import com.academicshare.backend.group.repository.GroupRepository;
++import com.academicshare.backend.schedule.repository.ScheduleRepository;
++import com.academicshare.backend.user.domain.User;
++import com.academicshare.backend.user.domain.UserStatus;
++import com.academicshare.backend.user.dto.UserUpdateRequest;
++import com.academicshare.backend.user.repository.UserRepository;
++import java.time.LocalDateTime;
++import java.util.List;
++import java.util.Objects;
++import java.util.regex.Pattern;
++import org.springframework.dao.DataIntegrityViolationException;
++import org.springframework.security.crypto.password.PasswordEncoder;
++import org.springframework.stereotype.Service;
++import org.springframework.transaction.annotation.Transactional;
++import org.springframework.util.StringUtils;
++
++@Service
++public class UserService {
++
++    private static final int MAX_NAME_LENGTH = 50;
++    private static final int MAX_EMAIL_LENGTH = 255;
++    private static final int MAX_PASSWORD_LENGTH = 255;
++    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
++
++    private final UserRepository userRepository;
++    private final ScheduleRepository scheduleRepository;
++    private final GroupRepository groupRepository;
++    private final GroupMemberRepository groupMemberRepository;
++    private final CurrentUserProvider currentUserProvider;
++    private final PasswordEncoder passwordEncoder;
++
++    public UserService(
++            UserRepository userRepository,
++            ScheduleRepository scheduleRepository,
++            GroupRepository groupRepository,
++            GroupMemberRepository groupMemberRepository,
++            CurrentUserProvider currentUserProvider,
++            PasswordEncoder passwordEncoder
++    ) {
++        this.userRepository = userRepository;
++        this.scheduleRepository = scheduleRepository;
++        this.groupRepository = groupRepository;
++        this.groupMemberRepository = groupMemberRepository;
++        this.currentUserProvider = currentUserProvider;
++        this.passwordEncoder = passwordEncoder;
++    }
++
++    @Transactional(readOnly = true)
++    public User getMe() {
++        return getCurrentUser();
++    }
++
++    @Transactional
++    public User updateMe(UserUpdateRequest request) {
++        User user = getCurrentUser();
++        validateUpdateRequest(user, request);
++
++        if (request.nameProvided()) {
++            user.changeName(request.name());
++        }
++        if (request.emailAddressProvided()) {
++            user.changeEmailAddress(request.emailAddress());
++        }
++        if (request.newPasswordProvided()) {
++            user.changePassword(passwordEncoder.encode(request.newPassword()));
++        }
++
++        try {
++            return userRepository.saveAndFlush(user);
++        } catch (DataIntegrityViolationException exception) {
++            throw new ApiException(ErrorCode.CONFLICT);
++        }
++    }
++
++    @Transactional
++    public void deleteMe() {
++        User user = getCurrentUser();
++        Integer userId = user.getId();
++
++        scheduleRepository.deleteByUserIdAndGroupIdIsNull(userId);
++        leaveAllGroups(userId);
++        user.markDeleted(LocalDateTime.now());
++    }
++
++    @Transactional
++    public int clearExpiredDeletedUserPersonalData(LocalDateTime now) {
++        LocalDateTime cutoff = now.minusMonths(6);
++        List<User> expiredUsers = userRepository.findByStatusAndDeletedAtLessThanEqual(UserStatus.DELETED, cutoff);
++        expiredUsers.forEach(User::clearPersonalData);
++        return expiredUsers.size();
++    }
++
++    private User getCurrentUser() {
++        return userRepository.findById(currentUserProvider.getCurrentUserId())
++                .orElseThrow(() -> new ApiException(ErrorCode.AUTHENTICATION_REQUIRED));
++    }
++
++    private void leaveAllGroups(Integer userId) {
++        List<GroupMember> memberships = groupMemberRepository.findByUserIdOrderByJoinedAtAscGroupIdAsc(userId);
++
++        for (GroupMember membership : memberships) {
++            Group group = groupRepository.findById(membership.getGroupId()).orElse(null);
++            if (group == null) {
++                continue;
++            }
++
++            List<GroupMember> members = groupMemberRepository.findByGroupIdOrderByJoinedAtAscUserIdAsc(group.getId());
++            List<GroupMember> remainingMembers = members.stream()
++                    .filter(member -> !Objects.equals(member.getUserId(), userId))
++                    .toList();
++
++            if (remainingMembers.isEmpty()) {
++                groupRepository.delete(group);
++                continue;
++            }
++
++            if (Objects.equals(group.getLeaderId(), userId) || membership.getRole() == GroupMemberRole.LEADER) {
++                GroupMember nextLeader = remainingMembers.get(0);
++                group.changeLeaderId(nextLeader.getUserId());
++                nextLeader.changeRole(GroupMemberRole.LEADER);
++            }
++
++            groupMemberRepository.delete(membership);
++        }
++    }
++
++    private void validateUpdateRequest(User user, UserUpdateRequest request) {
++        if (!request.hasAnyUpdateField()) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++
++        if (request.nameProvided()) {
++            validateName(user, request.name());
++        }
++        if (request.emailAddressProvided()) {
++            validateEmailAddress(user, request.emailAddress());
++        }
++        if (request.newPasswordProvided()) {
++            validatePasswordChange(user, request);
++        }
++    }
++
++    private void validateName(User user, String name) {
++        if (!StringUtils.hasText(name) || name.length() > MAX_NAME_LENGTH) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++        if (Objects.equals(user.getName(), name)) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++    }
++
++    private void validateEmailAddress(User user, String emailAddress) {
++        if (!StringUtils.hasText(emailAddress)
++                || emailAddress.length() > MAX_EMAIL_LENGTH
++                || !EMAIL_PATTERN.matcher(emailAddress).matches()) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++        if (Objects.equals(user.getEmailAddress(), emailAddress)) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++        if (userRepository.existsByEmailAddressAndIdNot(emailAddress, user.getId())) {
++            throw new ApiException(ErrorCode.CONFLICT);
++        }
++    }
++
++    private void validatePasswordChange(User user, UserUpdateRequest request) {
++        if (!StringUtils.hasText(request.newPassword()) || request.newPassword().length() > MAX_PASSWORD_LENGTH) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++        if (!StringUtils.hasText(request.currentPassword())) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++        if (!passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
++            throw new ApiException(ErrorCode.ACCESS_DENIED);
++        }
++        if (passwordEncoder.matches(request.newPassword(), user.getPassword())) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++    }
++}
+diff --git a/backend/src/test/java/com/academicshare/backend/user/controller/UserControllerTest.java b/backend/src/test/java/com/academicshare/backend/user/controller/UserControllerTest.java
+new file mode 100644
+index 0000000..d4e9fd7
+--- /dev/null
++++ b/backend/src/test/java/com/academicshare/backend/user/controller/UserControllerTest.java
+@@ -0,0 +1,368 @@
++package com.academicshare.backend.user.controller;
++
++import static org.assertj.core.api.Assertions.assertThat;
++import static org.hamcrest.Matchers.nullValue;
++import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
++import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
++import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
++import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
++
++import com.academicshare.backend.auth.session.AuthSessionAttributes;
++import com.academicshare.backend.comment.domain.Comment;
++import com.academicshare.backend.comment.repository.CommentRepository;
++import com.academicshare.backend.common.error.ErrorCode;
++import com.academicshare.backend.group.domain.Group;
++import com.academicshare.backend.group.domain.GroupMember;
++import com.academicshare.backend.group.domain.GroupMemberRole;
++import com.academicshare.backend.group.repository.GroupMemberRepository;
++import com.academicshare.backend.group.repository.GroupRepository;
++import com.academicshare.backend.post.domain.Post;
++import com.academicshare.backend.post.repository.PostRepository;
++import com.academicshare.backend.schedule.domain.Schedule;
++import com.academicshare.backend.schedule.repository.ScheduleRepository;
++import com.academicshare.backend.user.domain.User;
++import com.academicshare.backend.user.domain.UserStatus;
++import com.academicshare.backend.user.repository.UserRepository;
++import com.academicshare.backend.user.service.UserService;
++import jakarta.persistence.EntityManager;
++import java.time.LocalDateTime;
++import org.junit.jupiter.api.Test;
++import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
++import org.springframework.boot.test.context.SpringBootTest;
++import org.springframework.http.MediaType;
++import org.springframework.jdbc.core.JdbcTemplate;
++import org.springframework.mock.web.MockHttpSession;
++import org.springframework.security.crypto.password.PasswordEncoder;
++import org.springframework.test.context.ActiveProfiles;
++import org.springframework.test.web.servlet.MockMvc;
++import org.springframework.transaction.annotation.Transactional;
++
++@SpringBootTest
++@AutoConfigureMockMvc
++@ActiveProfiles("test")
++@Transactional
++class UserControllerTest {
++
++    @Autowired
++    private MockMvc mockMvc;
++
++    @Autowired
++    private UserRepository userRepository;
++
++    @Autowired
++    private ScheduleRepository scheduleRepository;
++
++    @Autowired
++    private GroupRepository groupRepository;
++
++    @Autowired
++    private GroupMemberRepository groupMemberRepository;
++
++    @Autowired
++    private PostRepository postRepository;
++
++    @Autowired
++    private CommentRepository commentRepository;
++
++    @Autowired
++    private PasswordEncoder passwordEncoder;
++
++    @Autowired
++    private UserService userService;
++
++    @Autowired
++    private JdbcTemplate jdbcTemplate;
++
++    @Autowired
++    private EntityManager entityManager;
++
++    @Test
++    void getMeReturnsCurrentUserAndRequiresAuthentication() throws Exception {
++        User user = saveUser("user-get-me", "Get Me", "user-get-me@example.com", "password123");
++
++        mockMvc.perform(get("/users/me")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, user.getId()))
++                .andExpect(status().isOk())
++                .andExpect(jsonPath("$.id").value(user.getId()))
++                .andExpect(jsonPath("$.login_id").value("user-get-me"))
++                .andExpect(jsonPath("$.name").value("Get Me"))
++                .andExpect(jsonPath("$.email_address").value("user-get-me@example.com"))
++                .andExpect(jsonPath("$.deleted_at").value(nullValue()))
++                .andExpect(jsonPath("$.status").value(UserStatus.ACTIVE.name()))
++                .andExpect(jsonPath("$.role").value("USER"))
++                .andExpect(jsonPath("$.password").doesNotExist());
++
++        mockMvc.perform(get("/users/me"))
++                .andExpect(status().isUnauthorized())
++                .andExpect(jsonPath("$.code").value(ErrorCode.AUTHENTICATION_REQUIRED.name()));
++    }
++
++    @Test
++    void updateMeUpdatesProfileAndPassword() throws Exception {
++        User user = saveUser("user-update-me", "Before Name", "user-update-me@example.com", "password123");
++
++        mockMvc.perform(patch("/users/me")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("""
++                                {
++                                  "name": "After Name",
++                                  "email_address": "user-update-after@example.com"
++                                }
++                                """)
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, user.getId())
++                        .with(csrf()))
++                .andExpect(status().isOk())
++                .andExpect(jsonPath("$.id").value(user.getId()))
++                .andExpect(jsonPath("$.login_id").value("user-update-me"))
++                .andExpect(jsonPath("$.name").value("After Name"))
++                .andExpect(jsonPath("$.email_address").value("user-update-after@example.com"))
++                .andExpect(jsonPath("$.password").doesNotExist());
++
++        User profileUpdated = userRepository.findById(user.getId()).orElseThrow();
++        assertThat(profileUpdated.getName()).isEqualTo("After Name");
++        assertThat(profileUpdated.getEmailAddress()).isEqualTo("user-update-after@example.com");
++
++        mockMvc.perform(patch("/users/me")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("""
++                                {
++                                  "current_password": "password123",
++                                  "new_password": "new-password123"
++                                }
++                                """)
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, user.getId())
++                        .with(csrf()))
++                .andExpect(status().isOk())
++                .andExpect(jsonPath("$.id").value(user.getId()))
++                .andExpect(jsonPath("$.password").doesNotExist());
++
++        User passwordUpdated = userRepository.findById(user.getId()).orElseThrow();
++        assertThat(passwordEncoder.matches("new-password123", passwordUpdated.getPassword())).isTrue();
++        assertThat(passwordEncoder.matches("password123", passwordUpdated.getPassword())).isFalse();
++    }
++
++    @Test
++    void updateMeRejectsInvalidRequests() throws Exception {
++        User user = saveUser("user-invalid-update", "Invalid Update", "user-invalid-update@example.com", "password123");
++        saveUser("user-email-owner", "Email Owner", "user-email-owner@example.com", "password123");
++
++        mockMvc.perform(patch("/users/me")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{}")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, user.getId())
++                        .with(csrf()))
++                .andExpect(status().isBadRequest())
++                .andExpect(jsonPath("$.code").value(ErrorCode.VALIDATION_ERROR.name()));
++
++        mockMvc.perform(patch("/users/me")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{\"name\":\"Invalid Update\"}")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, user.getId())
++                        .with(csrf()))
++                .andExpect(status().isBadRequest())
++                .andExpect(jsonPath("$.code").value(ErrorCode.VALIDATION_ERROR.name()));
++
++        mockMvc.perform(patch("/users/me")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{\"new_password\":\"new-password123\"}")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, user.getId())
++                        .with(csrf()))
++                .andExpect(status().isBadRequest())
++                .andExpect(jsonPath("$.code").value(ErrorCode.VALIDATION_ERROR.name()));
++
++        mockMvc.perform(patch("/users/me")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("""
++                                {
++                                  "current_password": "wrong-password",
++                                  "new_password": "new-password123"
++                                }
++                                """)
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, user.getId())
++                        .with(csrf()))
++                .andExpect(status().isForbidden())
++                .andExpect(jsonPath("$.code").value(ErrorCode.ACCESS_DENIED.name()));
++
++        mockMvc.perform(patch("/users/me")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("""
++                                {
++                                  "current_password": "password123",
++                                  "new_password": "password123"
++                                }
++                                """)
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, user.getId())
++                        .with(csrf()))
++                .andExpect(status().isBadRequest())
++                .andExpect(jsonPath("$.code").value(ErrorCode.VALIDATION_ERROR.name()));
++
++        mockMvc.perform(patch("/users/me")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{\"email_address\":\"user-email-owner@example.com\"}")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, user.getId())
++                        .with(csrf()))
++                .andExpect(status().isConflict())
++                .andExpect(jsonPath("$.code").value(ErrorCode.CONFLICT.name()));
++
++        mockMvc.perform(patch("/users/me")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{\"name\":\"Unauthenticated\"}")
++                        .with(csrf()))
++                .andExpect(status().isUnauthorized())
++                .andExpect(jsonPath("$.code").value(ErrorCode.AUTHENTICATION_REQUIRED.name()));
++    }
++
++    @Test
++    void deleteMeMarksDeletedInvalidatesSessionAndKeepsPersonalDataAndContent() throws Exception {
++        User user = saveUser("user-delete-me", "Delete Me", "user-delete-me@example.com", "password123");
++        Post post = postRepository.saveAndFlush(new Post(
++                user.getId(),
++                "Deleted user's post",
++                "content",
++                "Major",
++                "Subject",
++                false
++        ));
++        Comment comment = commentRepository.saveAndFlush(new Comment(
++                user.getId(),
++                post.getId(),
++                null,
++                "Deleted user's comment",
++                false
++        ));
++        Schedule personalSchedule = saveSchedule(user, null, "Personal schedule");
++        Group memberGroup = saveGroup(user, "member-group", "Member Group");
++        User memberGroupLeader = saveUser("member-group-leader", "Member Group Leader", "member-group-leader@example.com", "password123");
++        saveMembership(memberGroup, memberGroupLeader, GroupMemberRole.LEADER);
++        saveMembership(memberGroup, user, GroupMemberRole.MEMBER);
++        Group transferGroup = saveGroup(user, "transfer-group", "Transfer Group");
++        User earlyMember = saveUser("early-member", "Early Member", "early-member@example.com", "password123");
++        User lateMember = saveUser("late-member", "Late Member", "late-member@example.com", "password123");
++        saveMembership(transferGroup, user, GroupMemberRole.LEADER);
++        saveMembership(transferGroup, lateMember, GroupMemberRole.MEMBER);
++        saveMembership(transferGroup, earlyMember, GroupMemberRole.MEMBER);
++        setJoinedAt(transferGroup, user, "2026-05-01 09:00:00");
++        setJoinedAt(transferGroup, earlyMember, "2026-05-02 09:00:00");
++        setJoinedAt(transferGroup, lateMember, "2026-05-03 09:00:00");
++        Group soloGroup = saveGroup(user, "solo-group", "Solo Group");
++        saveMembership(soloGroup, user, GroupMemberRole.LEADER);
++        Schedule soloGroupSchedule = saveSchedule(user, soloGroup, "Solo group schedule");
++        MockHttpSession session = new MockHttpSession();
++        session.setAttribute(AuthSessionAttributes.CURRENT_USER_ID, user.getId());
++
++        mockMvc.perform(delete("/users/me")
++                        .session(session)
++                        .with(csrf()))
++                .andExpect(status().isNoContent());
++
++        assertThat(session.isInvalid()).isTrue();
++
++        User deletedUser = userRepository.findById(user.getId()).orElseThrow();
++        assertThat(deletedUser.getStatus()).isEqualTo(UserStatus.DELETED);
++        assertThat(deletedUser.getDeletedAt()).isNotNull();
++        assertThat(deletedUser.getLoginId()).isEqualTo("user-delete-me");
++        assertThat(deletedUser.getPassword()).isNotNull();
++        assertThat(deletedUser.getName()).isEqualTo("Delete Me");
++        assertThat(deletedUser.getEmailAddress()).isEqualTo("user-delete-me@example.com");
++        assertThat(scheduleRepository.existsById(personalSchedule.getId())).isFalse();
++        assertThat(postRepository.existsById(post.getId())).isTrue();
++        assertThat(commentRepository.existsById(comment.getId())).isTrue();
++        assertThat(groupMemberRepository.existsByGroupIdAndUserId(memberGroup.getId(), user.getId())).isFalse();
++        assertThat(groupMemberRepository.existsByGroupIdAndUserId(transferGroup.getId(), user.getId())).isFalse();
++        assertThat(groupRepository.findById(transferGroup.getId()).orElseThrow().getLeaderId()).isEqualTo(earlyMember.getId());
++        assertThat(groupMemberRepository.findById(new com.academicshare.backend.group.domain.GroupMemberId(
++                transferGroup.getId(),
++                earlyMember.getId()
++        )).orElseThrow().getRole()).isEqualTo(GroupMemberRole.LEADER);
++        assertThat(groupRepository.existsById(soloGroup.getId())).isFalse();
++        assertThat(scheduleRepository.existsById(soloGroupSchedule.getId())).isFalse();
++    }
++
++    @Test
++    void deleteMeRequiresAuthentication() throws Exception {
++        mockMvc.perform(delete("/users/me")
++                        .with(csrf()))
++                .andExpect(status().isUnauthorized())
++                .andExpect(jsonPath("$.code").value(ErrorCode.AUTHENTICATION_REQUIRED.name()));
++    }
++
++    @Test
++    void clearExpiredDeletedUserPersonalDataClearsOnlyUsersDeletedAtLeastSixMonthsAgo() {
++        User expired = saveUser("expired-deleted", "Expired Deleted", "expired-deleted@example.com", "password123");
++        User recent = saveUser("recent-deleted", "Recent Deleted", "recent-deleted@example.com", "password123");
++        User active = saveUser("active-user", "Active User", "active-user@example.com", "password123");
++        jdbcTemplate.update(
++                "UPDATE users SET status = 'DELETED', deleted_at = ? WHERE id = ?",
++                java.sql.Timestamp.valueOf("2025-10-01 00:00:00"),
++                expired.getId()
++        );
++        jdbcTemplate.update(
++                "UPDATE users SET status = 'DELETED', deleted_at = ? WHERE id = ?",
++                java.sql.Timestamp.valueOf("2026-04-01 00:00:00"),
++                recent.getId()
++        );
++        entityManager.clear();
++
++        int clearedCount = userService.clearExpiredDeletedUserPersonalData(LocalDateTime.parse("2026-05-17T00:00:00"));
++
++        assertThat(clearedCount).isEqualTo(1);
++        User cleared = userRepository.findById(expired.getId()).orElseThrow();
++        assertThat(cleared.getLoginId()).isNull();
++        assertThat(cleared.getPassword()).isNull();
++        assertThat(cleared.getName()).isNull();
++        assertThat(cleared.getEmailAddress()).isNull();
++        User retainedRecent = userRepository.findById(recent.getId()).orElseThrow();
++        assertThat(retainedRecent.getLoginId()).isEqualTo("recent-deleted");
++        User retainedActive = userRepository.findById(active.getId()).orElseThrow();
++        assertThat(retainedActive.getLoginId()).isEqualTo("active-user");
++    }
++
++    private User saveUser(String loginId, String name, String emailAddress, String rawPassword) {
++        return userRepository.saveAndFlush(new User(
++                loginId,
++                passwordEncoder.encode(rawPassword),
++                name,
++                emailAddress
++        ));
++    }
++
++    private Group saveGroup(User leader, String groupCode, String name) {
++        return groupRepository.saveAndFlush(new Group(
++                groupCode,
++                name,
++                leader.getId()
++        ));
++    }
++
++    private GroupMember saveMembership(Group group, User user, GroupMemberRole role) {
++        return groupMemberRepository.saveAndFlush(new GroupMember(
++                group.getId(),
++                user.getId(),
++                role
++        ));
++    }
++
++    private Schedule saveSchedule(User user, Group group, String title) {
++        return scheduleRepository.saveAndFlush(new Schedule(
++                user.getId(),
++                group == null ? null : group.getId(),
++                title,
++                LocalDateTime.parse("2026-05-12T10:00:00"),
++                LocalDateTime.parse("2026-05-12T12:00:00"),
++                "schedule description",
++                1
++        ));
++    }
++
++    private void setJoinedAt(Group group, User user, String joinedAt) {
++        jdbcTemplate.update(
++                "UPDATE group_members SET joined_at = ? WHERE group_id = ? AND user_id = ?",
++                java.sql.Timestamp.valueOf(joinedAt),
++                group.getId(),
++                user.getId()
++        );
++    }
++}
+diff --git a/backend/src/main/java/com/academicshare/backend/schedule/repository/ScheduleRepository.java b/backend/src/main/java/com/academicshare/backend/schedule/repository/ScheduleRepository.java
+index e420c4d..69f7259 100644
+--- a/backend/src/main/java/com/academicshare/backend/schedule/repository/ScheduleRepository.java
++++ b/backend/src/main/java/com/academicshare/backend/schedule/repository/ScheduleRepository.java
+@@ -1,7 +1,42 @@
+ package com.academicshare.backend.schedule.repository;
+ 
+ import com.academicshare.backend.schedule.domain.Schedule;
++import java.time.LocalDateTime;
++import java.util.List;
+ import org.springframework.data.jpa.repository.JpaRepository;
++import org.springframework.data.jpa.repository.Query;
++import org.springframework.data.repository.query.Param;
+ 
+ public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
++
++    @Query("""
++            select s
++            from Schedule s
++            where s.userId = :userId
++              and s.groupId is null
++              and (:startAt is null or s.endAt >= :startAt)
++              and (:endAt is null or s.startAt <= :endAt)
++            order by s.startAt asc, s.id asc
++            """)
++    List<Schedule> findPersonalSchedules(
++            @Param("userId") Integer userId,
++            @Param("startAt") LocalDateTime startAt,
++            @Param("endAt") LocalDateTime endAt
++    );
++
++    @Query("""
++            select s
++            from Schedule s
++            where s.groupId = :groupId
++              and (:startAt is null or s.endAt >= :startAt)
++              and (:endAt is null or s.startAt <= :endAt)
++            order by s.startAt asc, s.id asc
++            """)
++    List<Schedule> findGroupSchedules(
++            @Param("groupId") Integer groupId,
++            @Param("startAt") LocalDateTime startAt,
++            @Param("endAt") LocalDateTime endAt
++    );
++
++    void deleteByUserIdAndGroupIdIsNull(Integer userId);
+ }
+diff --git a/backend/src/main/java/com/academicshare/backend/group/domain/Group.java b/backend/src/main/java/com/academicshare/backend/group/domain/Group.java
+index a82a964..8ac0ec6 100644
+--- a/backend/src/main/java/com/academicshare/backend/group/domain/Group.java
++++ b/backend/src/main/java/com/academicshare/backend/group/domain/Group.java
+@@ -57,4 +57,24 @@ public class Group {
+     public Integer getId() {
+         return id;
+     }
++
++    public String getGroupCode() {
++        return groupCode;
++    }
++
++    public String getName() {
++        return name;
++    }
++
++    public Integer getLeaderId() {
++        return leaderId;
++    }
++
++    public LocalDateTime getCreatedAt() {
++        return createdAt;
++    }
++
++    public void changeLeaderId(Integer leaderId) {
++        this.leaderId = leaderId;
++    }
+ }
+diff --git a/backend/src/main/java/com/academicshare/backend/group/domain/GroupMember.java b/backend/src/main/java/com/academicshare/backend/group/domain/GroupMember.java
+index dfcfea2..235856e 100644
+--- a/backend/src/main/java/com/academicshare/backend/group/domain/GroupMember.java
++++ b/backend/src/main/java/com/academicshare/backend/group/domain/GroupMember.java
+@@ -50,4 +50,24 @@ public class GroupMember {
+             joinedAt = LocalDateTime.now();
+         }
+     }
++
++    public Integer getGroupId() {
++        return groupId;
++    }
++
++    public Integer getUserId() {
++        return userId;
++    }
++
++    public GroupMemberRole getRole() {
++        return role;
++    }
++
++    public LocalDateTime getJoinedAt() {
++        return joinedAt;
++    }
++
++    public void changeRole(GroupMemberRole role) {
++        this.role = role;
++    }
+ }
+diff --git a/backend/src/main/java/com/academicshare/backend/group/repository/GroupMemberRepository.java b/backend/src/main/java/com/academicshare/backend/group/repository/GroupMemberRepository.java
+index 920a3a6..f87ce62 100644
+--- a/backend/src/main/java/com/academicshare/backend/group/repository/GroupMemberRepository.java
++++ b/backend/src/main/java/com/academicshare/backend/group/repository/GroupMemberRepository.java
+@@ -2,7 +2,14 @@ package com.academicshare.backend.group.repository;
+ 
+ import com.academicshare.backend.group.domain.GroupMember;
+ import com.academicshare.backend.group.domain.GroupMemberId;
++import java.util.List;
+ import org.springframework.data.jpa.repository.JpaRepository;
+ 
+ public interface GroupMemberRepository extends JpaRepository<GroupMember, GroupMemberId> {
++
++    boolean existsByGroupIdAndUserId(Integer groupId, Integer userId);
++
++    List<GroupMember> findByGroupIdOrderByJoinedAtAscUserIdAsc(Integer groupId);
++
++    List<GroupMember> findByUserIdOrderByJoinedAtAscGroupIdAsc(Integer userId);
+ }

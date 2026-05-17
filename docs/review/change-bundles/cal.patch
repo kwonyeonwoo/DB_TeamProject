@@ -1,0 +1,902 @@
+﻿diff --git a/backend/src/main/java/com/academicshare/backend/schedule/domain/Schedule.java b/backend/src/main/java/com/academicshare/backend/schedule/domain/Schedule.java
+index 6a687eb..cec1748 100644
+--- a/backend/src/main/java/com/academicshare/backend/schedule/domain/Schedule.java
++++ b/backend/src/main/java/com/academicshare/backend/schedule/domain/Schedule.java
+@@ -14,6 +14,7 @@ import jakarta.validation.constraints.NotBlank;
+ import jakarta.validation.constraints.NotNull;
+ import jakarta.validation.constraints.Size;
+ import java.time.LocalDateTime;
++import java.util.Objects;
+ 
+ @Entity
+ @Table(name = "schedules")
+@@ -84,4 +85,76 @@ public class Schedule {
+     boolean isPeriodValid() {
+         return startAt == null || endAt == null || !endAt.isBefore(startAt);
+     }
++
++    public Integer getId() {
++        return id;
++    }
++
++    public Integer getUserId() {
++        return userId;
++    }
++
++    public Integer getGroupId() {
++        return groupId;
++    }
++
++    public String getTitle() {
++        return title;
++    }
++
++    public LocalDateTime getStartAt() {
++        return startAt;
++    }
++
++    public LocalDateTime getEndAt() {
++        return endAt;
++    }
++
++    public String getDescription() {
++        return description;
++    }
++
++    public Integer getType() {
++        return type;
++    }
++
++    public LocalDateTime getCreatedAt() {
++        return createdAt;
++    }
++
++    public LocalDateTime getUpdatedAt() {
++        return updatedAt;
++    }
++
++    public boolean isPersonal() {
++        return groupId == null;
++    }
++
++    public boolean isOwnedBy(Integer userId) {
++        return Objects.equals(this.userId, userId);
++    }
++
++    public void changeTitle(String title) {
++        this.title = title;
++    }
++
++    public void changeStartAt(LocalDateTime startAt) {
++        this.startAt = startAt;
++    }
++
++    public void changeEndAt(LocalDateTime endAt) {
++        this.endAt = endAt;
++    }
++
++    public void changeDescription(String description) {
++        this.description = description;
++    }
++
++    public void changeType(Integer type) {
++        this.type = type;
++    }
++
++    public void markUpdated() {
++        this.updatedAt = LocalDateTime.now();
++    }
+ }
+diff --git a/backend/src/main/java/com/academicshare/backend/schedule/repository/ScheduleRepository.java b/backend/src/main/java/com/academicshare/backend/schedule/repository/ScheduleRepository.java
+index e420c4d..9f71535 100644
+--- a/backend/src/main/java/com/academicshare/backend/schedule/repository/ScheduleRepository.java
++++ b/backend/src/main/java/com/academicshare/backend/schedule/repository/ScheduleRepository.java
+@@ -1,7 +1,26 @@
+ package com.academicshare.backend.schedule.repository;
+ 
+ import com.academicshare.backend.schedule.domain.Schedule;
++import java.time.LocalDateTime;
++import java.util.List;
+ import org.springframework.data.jpa.repository.JpaRepository;
++import org.springframework.data.jpa.repository.Query;
++import org.springframework.data.repository.query.Param;
+ 
+ public interface ScheduleRepository extends JpaRepository<Schedule, Integer> {
++
++    @Query("""
++            select s
++            from Schedule s
++            where s.userId = :userId
++              and s.groupId is null
++              and (:startAt is null or s.endAt >= :startAt)
++              and (:endAt is null or s.startAt <= :endAt)
++            order by s.startAt asc, s.id asc
++            """)
++    List<Schedule> findPersonalSchedules(
++            @Param("userId") Integer userId,
++            @Param("startAt") LocalDateTime startAt,
++            @Param("endAt") LocalDateTime endAt
++    );
+ }
+diff --git a/backend/src/main/java/com/academicshare/backend/schedule/controller/ScheduleController.java b/backend/src/main/java/com/academicshare/backend/schedule/controller/ScheduleController.java
+new file mode 100644
+index 0000000..c49e308
+--- /dev/null
++++ b/backend/src/main/java/com/academicshare/backend/schedule/controller/ScheduleController.java
+@@ -0,0 +1,128 @@
++package com.academicshare.backend.schedule.controller;
++
++import com.academicshare.backend.common.error.ErrorCode;
++import com.academicshare.backend.common.exception.ApiException;
++import com.academicshare.backend.common.response.ItemsResponse;
++import com.academicshare.backend.schedule.dto.ScheduleCreateRequest;
++import com.academicshare.backend.schedule.dto.ScheduleResponse;
++import com.academicshare.backend.schedule.dto.ScheduleUpdateRequest;
++import com.academicshare.backend.schedule.service.ScheduleService;
++import com.fasterxml.jackson.databind.JsonNode;
++import java.time.LocalDateTime;
++import java.time.format.DateTimeFormatter;
++import java.time.format.DateTimeParseException;
++import org.springframework.http.HttpStatus;
++import org.springframework.http.MediaType;
++import org.springframework.http.ResponseEntity;
++import org.springframework.web.bind.annotation.DeleteMapping;
++import org.springframework.web.bind.annotation.GetMapping;
++import org.springframework.web.bind.annotation.PatchMapping;
++import org.springframework.web.bind.annotation.PathVariable;
++import org.springframework.web.bind.annotation.PostMapping;
++import org.springframework.web.bind.annotation.RequestBody;
++import org.springframework.web.bind.annotation.RequestParam;
++import org.springframework.web.bind.annotation.ResponseStatus;
++import org.springframework.web.bind.annotation.RestController;
++
++@RestController
++public class ScheduleController {
++
++    private final ScheduleService scheduleService;
++
++    public ScheduleController(ScheduleService scheduleService) {
++        this.scheduleService = scheduleService;
++    }
++
++    @GetMapping("/me/schedules")
++    public ItemsResponse<ScheduleResponse> getMySchedules(
++            @RequestParam(name = "start_at", required = false) String startAt,
++            @RequestParam(name = "end_at", required = false) String endAt
++    ) {
++        return new ItemsResponse<>(scheduleService.getMySchedules(
++                parseDateTime(startAt),
++                parseDateTime(endAt)
++        ));
++    }
++
++    @PostMapping(value = "/me/schedules", consumes = MediaType.APPLICATION_JSON_VALUE)
++    @ResponseStatus(HttpStatus.CREATED)
++    public ScheduleResponse createMySchedule(@RequestBody JsonNode request) {
++        return scheduleService.createMySchedule(new ScheduleCreateRequest(
++                textValue(request, "title"),
++                dateTimeValue(request, "start_at"),
++                dateTimeValue(request, "end_at"),
++                textValue(request, "description"),
++                integerValue(request, "type")
++        ));
++    }
++
++    @PatchMapping(value = "/me/schedules/{scheduleId}", consumes = MediaType.APPLICATION_JSON_VALUE)
++    public ScheduleResponse updateMySchedule(
++            @PathVariable Integer scheduleId,
++            @RequestBody JsonNode request
++    ) {
++        return scheduleService.updateMySchedule(scheduleId, new ScheduleUpdateRequest(
++                textValue(request, "title"),
++                request.has("title"),
++                dateTimeValue(request, "start_at"),
++                request.has("start_at"),
++                dateTimeValue(request, "end_at"),
++                request.has("end_at"),
++                textValue(request, "description"),
++                request.has("description"),
++                integerValue(request, "type"),
++                request.has("type")
++        ));
++    }
++
++    @DeleteMapping("/me/schedules/{scheduleId}")
++    public ResponseEntity<Void> deleteMySchedule(@PathVariable Integer scheduleId) {
++        scheduleService.deleteMySchedule(scheduleId);
++        return ResponseEntity.noContent().build();
++    }
++
++    private String textValue(JsonNode request, String fieldName) {
++        JsonNode value = request.get(fieldName);
++        if (value == null || value.isNull()) {
++            return null;
++        }
++        if (!value.isTextual()) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++        return value.asText();
++    }
++
++    private LocalDateTime dateTimeValue(JsonNode request, String fieldName) {
++        JsonNode value = request.get(fieldName);
++        if (value == null || value.isNull()) {
++            return null;
++        }
++        if (!value.isTextual()) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++        return parseDateTime(value.asText());
++    }
++
++    private Integer integerValue(JsonNode request, String fieldName) {
++        JsonNode value = request.get(fieldName);
++        if (value == null || value.isNull()) {
++            return null;
++        }
++        if (!value.isIntegralNumber() || !value.canConvertToInt()) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++        return value.asInt();
++    }
++
++    private LocalDateTime parseDateTime(String value) {
++        if (value == null) {
++            return null;
++        }
++
++        try {
++            return LocalDateTime.parse(value, DateTimeFormatter.ISO_DATE_TIME);
++        } catch (DateTimeParseException exception) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++    }
++}
+diff --git a/backend/src/main/java/com/academicshare/backend/schedule/dto/ScheduleCreateRequest.java b/backend/src/main/java/com/academicshare/backend/schedule/dto/ScheduleCreateRequest.java
+new file mode 100644
+index 0000000..df40376
+--- /dev/null
++++ b/backend/src/main/java/com/academicshare/backend/schedule/dto/ScheduleCreateRequest.java
+@@ -0,0 +1,12 @@
++package com.academicshare.backend.schedule.dto;
++
++import java.time.LocalDateTime;
++
++public record ScheduleCreateRequest(
++        String title,
++        LocalDateTime startAt,
++        LocalDateTime endAt,
++        String description,
++        Integer type
++) {
++}
+diff --git a/backend/src/main/java/com/academicshare/backend/schedule/dto/ScheduleResponse.java b/backend/src/main/java/com/academicshare/backend/schedule/dto/ScheduleResponse.java
+new file mode 100644
+index 0000000..f418fa1
+--- /dev/null
++++ b/backend/src/main/java/com/academicshare/backend/schedule/dto/ScheduleResponse.java
+@@ -0,0 +1,35 @@
++package com.academicshare.backend.schedule.dto;
++
++import com.academicshare.backend.schedule.domain.Schedule;
++import com.fasterxml.jackson.annotation.JsonInclude;
++import java.time.LocalDateTime;
++
++@JsonInclude(JsonInclude.Include.ALWAYS)
++public record ScheduleResponse(
++        Integer id,
++        Integer userId,
++        Integer groupId,
++        String title,
++        LocalDateTime startAt,
++        LocalDateTime endAt,
++        String description,
++        Integer type,
++        LocalDateTime createdAt,
++        LocalDateTime updatedAt
++) {
++
++    public static ScheduleResponse from(Schedule schedule) {
++        return new ScheduleResponse(
++                schedule.getId(),
++                schedule.getUserId(),
++                schedule.getGroupId(),
++                schedule.getTitle(),
++                schedule.getStartAt(),
++                schedule.getEndAt(),
++                schedule.getDescription(),
++                schedule.getType(),
++                schedule.getCreatedAt(),
++                schedule.getUpdatedAt()
++        );
++    }
++}
+diff --git a/backend/src/main/java/com/academicshare/backend/schedule/dto/ScheduleUpdateRequest.java b/backend/src/main/java/com/academicshare/backend/schedule/dto/ScheduleUpdateRequest.java
+new file mode 100644
+index 0000000..6402c79
+--- /dev/null
++++ b/backend/src/main/java/com/academicshare/backend/schedule/dto/ScheduleUpdateRequest.java
+@@ -0,0 +1,25 @@
++package com.academicshare.backend.schedule.dto;
++
++import java.time.LocalDateTime;
++
++public record ScheduleUpdateRequest(
++        String title,
++        boolean titleProvided,
++        LocalDateTime startAt,
++        boolean startAtProvided,
++        LocalDateTime endAt,
++        boolean endAtProvided,
++        String description,
++        boolean descriptionProvided,
++        Integer type,
++        boolean typeProvided
++) {
++
++    public boolean hasAnyField() {
++        return titleProvided
++                || startAtProvided
++                || endAtProvided
++                || descriptionProvided
++                || typeProvided;
++    }
++}
+diff --git a/backend/src/main/java/com/academicshare/backend/schedule/service/ScheduleService.java b/backend/src/main/java/com/academicshare/backend/schedule/service/ScheduleService.java
+new file mode 100644
+index 0000000..48f485d
+--- /dev/null
++++ b/backend/src/main/java/com/academicshare/backend/schedule/service/ScheduleService.java
+@@ -0,0 +1,167 @@
++package com.academicshare.backend.schedule.service;
++
++import com.academicshare.backend.auth.session.CurrentUserProvider;
++import com.academicshare.backend.common.error.ErrorCode;
++import com.academicshare.backend.common.exception.ApiException;
++import com.academicshare.backend.schedule.domain.Schedule;
++import com.academicshare.backend.schedule.dto.ScheduleCreateRequest;
++import com.academicshare.backend.schedule.dto.ScheduleResponse;
++import com.academicshare.backend.schedule.dto.ScheduleUpdateRequest;
++import com.academicshare.backend.schedule.repository.ScheduleRepository;
++import java.time.LocalDateTime;
++import java.util.List;
++import org.springframework.stereotype.Service;
++import org.springframework.transaction.annotation.Transactional;
++import org.springframework.util.StringUtils;
++
++@Service
++public class ScheduleService {
++
++    private static final int MAX_TITLE_LENGTH = 255;
++    private static final int MAX_DESCRIPTION_LENGTH = 500;
++    private static final int MIN_TYPE = 1;
++    private static final int MAX_TYPE = 5;
++
++    private final ScheduleRepository scheduleRepository;
++    private final CurrentUserProvider currentUserProvider;
++
++    public ScheduleService(ScheduleRepository scheduleRepository, CurrentUserProvider currentUserProvider) {
++        this.scheduleRepository = scheduleRepository;
++        this.currentUserProvider = currentUserProvider;
++    }
++
++    @Transactional(readOnly = true)
++    public List<ScheduleResponse> getMySchedules(LocalDateTime startAt, LocalDateTime endAt) {
++        validatePeriod(startAt, endAt);
++
++        return scheduleRepository.findPersonalSchedules(currentUserProvider.getCurrentUserId(), startAt, endAt)
++                .stream()
++                .map(ScheduleResponse::from)
++                .toList();
++    }
++
++    @Transactional
++    public ScheduleResponse createMySchedule(ScheduleCreateRequest request) {
++        validateCreateRequest(request);
++
++        Schedule schedule = scheduleRepository.saveAndFlush(new Schedule(
++                currentUserProvider.getCurrentUserId(),
++                null,
++                request.title(),
++                request.startAt(),
++                request.endAt(),
++                request.description(),
++                request.type()
++        ));
++
++        return ScheduleResponse.from(schedule);
++    }
++
++    @Transactional
++    public ScheduleResponse updateMySchedule(Integer scheduleId, ScheduleUpdateRequest request) {
++        Schedule schedule = findSchedule(scheduleId);
++        requirePersonalOwner(schedule);
++        validateUpdateRequest(schedule, request);
++
++        if (request.titleProvided()) {
++            schedule.changeTitle(request.title());
++        }
++        if (request.startAtProvided()) {
++            schedule.changeStartAt(request.startAt());
++        }
++        if (request.endAtProvided()) {
++            schedule.changeEndAt(request.endAt());
++        }
++        if (request.descriptionProvided()) {
++            schedule.changeDescription(request.description());
++        }
++        if (request.typeProvided()) {
++            schedule.changeType(request.type());
++        }
++        schedule.markUpdated();
++
++        return ScheduleResponse.from(schedule);
++    }
++
++    @Transactional
++    public void deleteMySchedule(Integer scheduleId) {
++        Schedule schedule = findSchedule(scheduleId);
++        requirePersonalOwner(schedule);
++        scheduleRepository.delete(schedule);
++    }
++
++    private Schedule findSchedule(Integer scheduleId) {
++        return scheduleRepository.findById(scheduleId)
++                .orElseThrow(() -> new ApiException(ErrorCode.RESOURCE_NOT_FOUND));
++    }
++
++    private void requirePersonalOwner(Schedule schedule) {
++        if (!schedule.isPersonal() || !schedule.isOwnedBy(currentUserProvider.getCurrentUserId())) {
++            throw new ApiException(ErrorCode.ACCESS_DENIED);
++        }
++    }
++
++    private void validateCreateRequest(ScheduleCreateRequest request) {
++        validateRequiredText(request.title(), MAX_TITLE_LENGTH);
++        validateRequiredDateTime(request.startAt());
++        validateRequiredDateTime(request.endAt());
++        validateType(request.type());
++        validateDescription(request.description());
++        validatePeriod(request.startAt(), request.endAt());
++    }
++
++    private void validateUpdateRequest(Schedule schedule, ScheduleUpdateRequest request) {
++        if (!request.hasAnyField()) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++        if (request.titleProvided()) {
++            validateRequiredText(request.title(), MAX_TITLE_LENGTH);
++        }
++        if (request.startAtProvided()) {
++            validateRequiredDateTime(request.startAt());
++        }
++        if (request.endAtProvided()) {
++            validateRequiredDateTime(request.endAt());
++        }
++        if (request.descriptionProvided()) {
++            validateDescription(request.description());
++        }
++        if (request.typeProvided()) {
++            validateType(request.type());
++        }
++
++        LocalDateTime startAt = request.startAtProvided() ? request.startAt() : schedule.getStartAt();
++        LocalDateTime endAt = request.endAtProvided() ? request.endAt() : schedule.getEndAt();
++        validatePeriod(startAt, endAt);
++    }
++
++    private void validateRequiredText(String value, int maxLength) {
++        if (!StringUtils.hasText(value) || value.length() > maxLength) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++    }
++
++    private void validateRequiredDateTime(LocalDateTime value) {
++        if (value == null) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++    }
++
++    private void validateType(Integer type) {
++        if (type == null || type < MIN_TYPE || type > MAX_TYPE) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++    }
++
++    private void validateDescription(String description) {
++        if (description != null && description.length() > MAX_DESCRIPTION_LENGTH) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++    }
++
++    private void validatePeriod(LocalDateTime startAt, LocalDateTime endAt) {
++        if (startAt != null && endAt != null && endAt.isBefore(startAt)) {
++            throw new ApiException(ErrorCode.VALIDATION_ERROR);
++        }
++    }
++}
+diff --git a/backend/src/test/java/com/academicshare/backend/schedule/controller/ScheduleControllerTest.java b/backend/src/test/java/com/academicshare/backend/schedule/controller/ScheduleControllerTest.java
+new file mode 100644
+index 0000000..a10cf9f
+--- /dev/null
++++ b/backend/src/test/java/com/academicshare/backend/schedule/controller/ScheduleControllerTest.java
+@@ -0,0 +1,379 @@
++package com.academicshare.backend.schedule.controller;
++
++import static org.assertj.core.api.Assertions.assertThat;
++import static org.hamcrest.Matchers.contains;
++import static org.hamcrest.Matchers.nullValue;
++import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
++import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
++import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
++import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
++import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
++import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
++
++import com.academicshare.backend.auth.session.AuthSessionAttributes;
++import com.academicshare.backend.common.error.ErrorCode;
++import com.academicshare.backend.group.domain.Group;
++import com.academicshare.backend.group.repository.GroupRepository;
++import com.academicshare.backend.schedule.domain.Schedule;
++import com.academicshare.backend.schedule.repository.ScheduleRepository;
++import com.academicshare.backend.user.domain.User;
++import com.academicshare.backend.user.repository.UserRepository;
++import java.time.LocalDateTime;
++import org.junit.jupiter.api.Test;
++import org.springframework.beans.factory.annotation.Autowired;
++import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
++import org.springframework.boot.test.context.SpringBootTest;
++import org.springframework.http.MediaType;
++import org.springframework.test.context.ActiveProfiles;
++import org.springframework.test.web.servlet.MockMvc;
++import org.springframework.transaction.annotation.Transactional;
++
++@SpringBootTest
++@AutoConfigureMockMvc
++@ActiveProfiles("test")
++@Transactional
++class ScheduleControllerTest {
++
++    @Autowired
++    private MockMvc mockMvc;
++
++    @Autowired
++    private UserRepository userRepository;
++
++    @Autowired
++    private GroupRepository groupRepository;
++
++    @Autowired
++    private ScheduleRepository scheduleRepository;
++
++    @Test
++    void getMySchedulesReturnsOnlyCurrentUsersPersonalSchedulesAndSupportsPeriodFilters() throws Exception {
++        User currentUser = saveUser("schedule-list-current", "Schedule List Current", "schedule-list-current@example.com");
++        User otherUser = saveUser("schedule-list-other", "Schedule List Other", "schedule-list-other@example.com");
++        Schedule older = saveSchedule(currentUser, "older", "2026-05-01T09:00:00", "2026-05-01T10:00:00");
++        Schedule overlapping = saveSchedule(currentUser, "overlapping", "2026-05-12T10:00:00", "2026-05-12T12:00:00");
++        Schedule later = saveSchedule(currentUser, "later", "2026-06-01T09:00:00", "2026-06-01T10:00:00");
++        saveSchedule(otherUser, "other", "2026-05-12T10:00:00", "2026-05-12T12:00:00");
++        saveGroupSchedule(currentUser, "group schedule", "2026-05-12T10:00:00", "2026-05-12T12:00:00");
++
++        mockMvc.perform(get("/me/schedules")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId()))
++                .andExpect(status().isOk())
++                .andExpect(jsonPath("$.items.length()").value(3))
++                .andExpect(jsonPath("$.items[*].id", contains(older.getId(), overlapping.getId(), later.getId())))
++                .andExpect(jsonPath("$.items[0].group_id").value(nullValue()))
++                .andExpect(jsonPath("$.items[0].updated_at").value(nullValue()));
++
++        mockMvc.perform(get("/me/schedules")
++                        .param("start_at", "2026-05-12T11:00:00")
++                        .param("end_at", "2026-05-12T13:00:00")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId()))
++                .andExpect(status().isOk())
++                .andExpect(jsonPath("$.items.length()").value(1))
++                .andExpect(jsonPath("$.items[0].id").value(overlapping.getId()));
++
++        mockMvc.perform(get("/me/schedules")
++                        .param("start_at", "2026-05-12T11:00:00")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId()))
++                .andExpect(status().isOk())
++                .andExpect(jsonPath("$.items[*].id", contains(overlapping.getId(), later.getId())));
++
++        mockMvc.perform(get("/me/schedules")
++                        .param("end_at", "2026-05-02T00:00:00")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId()))
++                .andExpect(status().isOk())
++                .andExpect(jsonPath("$.items[*].id", contains(older.getId())));
++    }
++
++    @Test
++    void getMySchedulesRejectsInvalidDateQuery() throws Exception {
++        User currentUser = saveUser("schedule-query-invalid", "Schedule Query Invalid", "schedule-query-invalid@example.com");
++
++        mockMvc.perform(get("/me/schedules")
++                        .param("start_at", "not-a-date")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId()))
++                .andExpect(status().isBadRequest())
++                .andExpect(jsonPath("$.code").value(ErrorCode.VALIDATION_ERROR.name()));
++
++        mockMvc.perform(get("/me/schedules")
++                        .param("start_at", "2026-05-12T13:00:00")
++                        .param("end_at", "2026-05-12T12:00:00")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId()))
++                .andExpect(status().isBadRequest())
++                .andExpect(jsonPath("$.code").value(ErrorCode.VALIDATION_ERROR.name()));
++    }
++
++    @Test
++    void createMyScheduleReturnsCreatedScheduleAndRejectsInvalidRequests() throws Exception {
++        User currentUser = saveUser("schedule-create-current", "Schedule Create Current", "schedule-create-current@example.com");
++
++        mockMvc.perform(post("/me/schedules")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("""
++                                {
++                                  "title": "Midterm",
++                                  "start_at": "2026-05-12T10:00:00",
++                                  "end_at": "2026-05-12T12:00:00",
++                                  "description": "Room 101",
++                                  "type": 3
++                                }
++                                """)
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId())
++                        .with(csrf()))
++                .andExpect(status().isCreated())
++                .andExpect(jsonPath("$.id").isNumber())
++                .andExpect(jsonPath("$.user_id").value(currentUser.getId()))
++                .andExpect(jsonPath("$.group_id").value(nullValue()))
++                .andExpect(jsonPath("$.title").value("Midterm"))
++                .andExpect(jsonPath("$.start_at").value("2026-05-12T10:00:00"))
++                .andExpect(jsonPath("$.end_at").value("2026-05-12T12:00:00"))
++                .andExpect(jsonPath("$.description").value("Room 101"))
++                .andExpect(jsonPath("$.type").value(3))
++                .andExpect(jsonPath("$.created_at").isNotEmpty())
++                .andExpect(jsonPath("$.updated_at").value(nullValue()));
++
++        Schedule saved = scheduleRepository.findAll().get(0);
++        assertThat(saved.getUserId()).isEqualTo(currentUser.getId());
++        assertThat(saved.getGroupId()).isNull();
++
++        mockMvc.perform(post("/me/schedules")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("""
++                                {
++                                  "start_at": "2026-05-12T10:00:00",
++                                  "end_at": "2026-05-12T12:00:00",
++                                  "type": 3
++                                }
++                                """)
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId())
++                        .with(csrf()))
++                .andExpect(status().isBadRequest())
++                .andExpect(jsonPath("$.code").value(ErrorCode.VALIDATION_ERROR.name()));
++
++        mockMvc.perform(post("/me/schedules")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("""
++                                {
++                                  "title": "Invalid type",
++                                  "start_at": "2026-05-12T10:00:00",
++                                  "end_at": "2026-05-12T12:00:00",
++                                  "type": 6
++                                }
++                                """)
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId())
++                        .with(csrf()))
++                .andExpect(status().isBadRequest())
++                .andExpect(jsonPath("$.code").value(ErrorCode.VALIDATION_ERROR.name()));
++
++        mockMvc.perform(post("/me/schedules")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("""
++                                {
++                                  "title": "Invalid period",
++                                  "start_at": "2026-05-12T12:00:00",
++                                  "end_at": "2026-05-12T10:00:00",
++                                  "type": 1
++                                }
++                                """)
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId())
++                        .with(csrf()))
++                .andExpect(status().isBadRequest())
++                .andExpect(jsonPath("$.code").value(ErrorCode.VALIDATION_ERROR.name()));
++    }
++
++    @Test
++    void updateMyScheduleRequiresOwnerAndValidValues() throws Exception {
++        User owner = saveUser("schedule-update-owner", "Schedule Update Owner", "schedule-update-owner@example.com");
++        User other = saveUser("schedule-update-other", "Schedule Update Other", "schedule-update-other@example.com");
++        Schedule schedule = saveSchedule(owner, "Before", "2026-05-12T10:00:00", "2026-05-12T12:00:00");
++        Schedule ownerGroupSchedule = saveGroupSchedule(owner, "Owner group update", "2026-05-14T10:00:00", "2026-05-14T12:00:00");
++
++        mockMvc.perform(patch("/me/schedules/{scheduleId}", schedule.getId())
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("""
++                                {
++                                  "title": "After",
++                                  "end_at": "2026-05-12T13:00:00",
++                                  "description": null,
++                                  "type": 5
++                                }
++                                """)
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, owner.getId())
++                        .with(csrf()))
++                .andExpect(status().isOk())
++                .andExpect(jsonPath("$.title").value("After"))
++                .andExpect(jsonPath("$.end_at").value("2026-05-12T13:00:00"))
++                .andExpect(jsonPath("$.description").value(nullValue()))
++                .andExpect(jsonPath("$.type").value(5))
++                .andExpect(jsonPath("$.updated_at").isNotEmpty());
++
++        Schedule updated = scheduleRepository.findById(schedule.getId()).orElseThrow();
++        assertThat(updated.getTitle()).isEqualTo("After");
++        assertThat(updated.getDescription()).isNull();
++        assertThat(updated.getUpdatedAt()).isNotNull();
++
++        mockMvc.perform(patch("/me/schedules/{scheduleId}", schedule.getId())
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{\"type\":0}")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, owner.getId())
++                        .with(csrf()))
++                .andExpect(status().isBadRequest())
++                .andExpect(jsonPath("$.code").value(ErrorCode.VALIDATION_ERROR.name()));
++
++        mockMvc.perform(patch("/me/schedules/{scheduleId}", schedule.getId())
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{\"end_at\":\"2026-05-12T09:00:00\"}")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, owner.getId())
++                        .with(csrf()))
++                .andExpect(status().isBadRequest())
++                .andExpect(jsonPath("$.code").value(ErrorCode.VALIDATION_ERROR.name()));
++
++        mockMvc.perform(patch("/me/schedules/{scheduleId}", schedule.getId())
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{}")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, owner.getId())
++                        .with(csrf()))
++                .andExpect(status().isBadRequest())
++                .andExpect(jsonPath("$.code").value(ErrorCode.VALIDATION_ERROR.name()));
++
++        mockMvc.perform(patch("/me/schedules/{scheduleId}", schedule.getId())
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{\"title\":\"Blocked\"}")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, other.getId())
++                        .with(csrf()))
++                .andExpect(status().isForbidden())
++                .andExpect(jsonPath("$.code").value(ErrorCode.ACCESS_DENIED.name()));
++
++        mockMvc.perform(patch("/me/schedules/{scheduleId}", ownerGroupSchedule.getId())
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{\"title\":\"Blocked group\"}")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, owner.getId())
++                        .with(csrf()))
++                .andExpect(status().isForbidden())
++                .andExpect(jsonPath("$.code").value(ErrorCode.ACCESS_DENIED.name()));
++
++        Schedule unchangedGroupSchedule = scheduleRepository.findById(ownerGroupSchedule.getId()).orElseThrow();
++        assertThat(unchangedGroupSchedule.getTitle()).isEqualTo("Owner group update");
++        assertThat(unchangedGroupSchedule.getUpdatedAt()).isNull();
++
++        mockMvc.perform(patch("/me/schedules/{scheduleId}", 999_999)
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{\"title\":\"Missing\"}")
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, owner.getId())
++                        .with(csrf()))
++                .andExpect(status().isNotFound())
++                .andExpect(jsonPath("$.code").value(ErrorCode.RESOURCE_NOT_FOUND.name()));
++    }
++
++    @Test
++    void deleteMyScheduleRequiresOwnerAndExistingSchedule() throws Exception {
++        User owner = saveUser("schedule-delete-owner", "Schedule Delete Owner", "schedule-delete-owner@example.com");
++        User other = saveUser("schedule-delete-other", "Schedule Delete Other", "schedule-delete-other@example.com");
++        Schedule ownerSchedule = saveSchedule(owner, "Delete me", "2026-05-12T10:00:00", "2026-05-12T12:00:00");
++        Schedule otherSchedule = saveSchedule(other, "Other schedule", "2026-05-13T10:00:00", "2026-05-13T12:00:00");
++        Schedule ownerGroupSchedule = saveGroupSchedule(owner, "Owner group delete", "2026-05-14T10:00:00", "2026-05-14T12:00:00");
++
++        mockMvc.perform(delete("/me/schedules/{scheduleId}", otherSchedule.getId())
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, owner.getId())
++                        .with(csrf()))
++                .andExpect(status().isForbidden())
++                .andExpect(jsonPath("$.code").value(ErrorCode.ACCESS_DENIED.name()));
++
++        mockMvc.perform(delete("/me/schedules/{scheduleId}", ownerGroupSchedule.getId())
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, owner.getId())
++                        .with(csrf()))
++                .andExpect(status().isForbidden())
++                .andExpect(jsonPath("$.code").value(ErrorCode.ACCESS_DENIED.name()));
++
++        assertThat(scheduleRepository.existsById(ownerGroupSchedule.getId())).isTrue();
++
++        mockMvc.perform(delete("/me/schedules/{scheduleId}", ownerSchedule.getId())
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, owner.getId())
++                        .with(csrf()))
++                .andExpect(status().isNoContent());
++
++        assertThat(scheduleRepository.existsById(ownerSchedule.getId())).isFalse();
++        assertThat(scheduleRepository.existsById(otherSchedule.getId())).isTrue();
++
++        mockMvc.perform(delete("/me/schedules/{scheduleId}", 999_999)
++                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, owner.getId())
++                        .with(csrf()))
++                .andExpect(status().isNotFound())
++                .andExpect(jsonPath("$.code").value(ErrorCode.RESOURCE_NOT_FOUND.name()));
++    }
++
++    @Test
++    void scheduleApiRequiresAuthentication() throws Exception {
++        User owner = saveUser("schedule-auth-owner", "Schedule Auth Owner", "schedule-auth-owner@example.com");
++        Schedule schedule = saveSchedule(owner, "Auth schedule", "2026-05-12T10:00:00", "2026-05-12T12:00:00");
++
++        mockMvc.perform(get("/me/schedules"))
++                .andExpect(status().isUnauthorized())
++                .andExpect(jsonPath("$.code").value(ErrorCode.AUTHENTICATION_REQUIRED.name()));
++
++        mockMvc.perform(post("/me/schedules")
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("""
++                                {
++                                  "title": "Auth create",
++                                  "start_at": "2026-05-12T10:00:00",
++                                  "end_at": "2026-05-12T12:00:00",
++                                  "type": 1
++                                }
++                                """)
++                        .with(csrf()))
++                .andExpect(status().isUnauthorized())
++                .andExpect(jsonPath("$.code").value(ErrorCode.AUTHENTICATION_REQUIRED.name()));
++
++        mockMvc.perform(patch("/me/schedules/{scheduleId}", schedule.getId())
++                        .contentType(MediaType.APPLICATION_JSON)
++                        .content("{\"title\":\"Auth update\"}")
++                        .with(csrf()))
++                .andExpect(status().isUnauthorized())
++                .andExpect(jsonPath("$.code").value(ErrorCode.AUTHENTICATION_REQUIRED.name()));
++
++        mockMvc.perform(delete("/me/schedules/{scheduleId}", schedule.getId())
++                        .with(csrf()))
++                .andExpect(status().isUnauthorized())
++                .andExpect(jsonPath("$.code").value(ErrorCode.AUTHENTICATION_REQUIRED.name()));
++    }
++
++    private User saveUser(String loginId, String name, String emailAddress) {
++        return userRepository.saveAndFlush(new User(
++                loginId,
++                "encoded-password",
++                name,
++                emailAddress
++        ));
++    }
++
++    private Schedule saveSchedule(User user, String title, String startAt, String endAt) {
++        return scheduleRepository.saveAndFlush(new Schedule(
++                user.getId(),
++                null,
++                title,
++                LocalDateTime.parse(startAt),
++                LocalDateTime.parse(endAt),
++                "schedule description",
++                1
++        ));
++    }
++
++    private Schedule saveGroupSchedule(User user, String title, String startAt, String endAt) {
++        Group group = groupRepository.saveAndFlush(new Group(
++                "group-" + title.replace(" ", "-"),
++                "Group " + title,
++                user.getId()
++        ));
++        return scheduleRepository.saveAndFlush(new Schedule(
++                user.getId(),
++                group.getId(),
++                title,
++                LocalDateTime.parse(startAt),
++                LocalDateTime.parse(endAt),
++                "group schedule description",
++                1
++        ));
++    }
++}

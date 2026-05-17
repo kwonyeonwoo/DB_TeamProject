@@ -177,10 +177,10 @@ Rules:
 |---|---|---|
 | `id` | integer | 알림 식별자 |
 | `is_read` | boolean | 읽음 여부 |
-| `comment_content` | string | 알림에 표시할 댓글 내용 |
+| `comment_content` | string | 알림 발생 당시 수신자에게 표시할 댓글/대댓글 내용. 원본 댓글/대댓글 수정 또는 삭제 후에도 변경하지 않는 스냅샷 값 |
 | `commented_post_id` | integer | 댓글이 달린 게시글 id |
 | `commented_user_id` | integer | 알림 수신자 id |
-| `commented_id` | integer, nullable | 댓글 알림이면 NULL, 대댓글 알림이면 부모 댓글 id |
+| `commented_id` | integer, nullable | 댓글 알림이면 NULL, 대댓글 알림이면 부모 댓글 id. 삭제 cascade FK가 아닌 이동용 힌트 |
 | `created_at` | string | 알림 생성 일시 |
 
 ### 4-8. Group
@@ -908,7 +908,8 @@ Errors:
 Processing:
 
 - 작성자 권한을 확인한 뒤 댓글 또는 대댓글을 삭제한다.
-- 댓글 삭제 시 해당 댓글의 대댓글과 알림은 FK cascade 정책에 따라 함께 삭제된다.
+- 일반 댓글 삭제 시 해당 댓글의 대댓글은 FK cascade 정책에 따라 함께 삭제된다.
+- 댓글 또는 대댓글 삭제 후에도 이미 생성된 알림 row는 유지하며, `notification.comment_content` 값은 변경하지 않는다.
 - 해당 댓글, 또는 함께 삭제된 대댓글을 대상으로 생성된 신고 이력은 `report` 테이블에 유지한다.
 - 삭제된 댓글 또는 대댓글을 대상으로 한 신고 이력은 관리자 신고 목록에서 `삭제된 대상`으로 표시한다.
 
