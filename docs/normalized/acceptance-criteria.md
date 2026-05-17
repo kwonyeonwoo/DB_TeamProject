@@ -9,6 +9,7 @@
 - 회원 탈퇴 시 개인정보성 컬럼은 즉시 변경하지 않고, `deleted_at`으로부터 6개월 후 NULL 또는 식별 불가 값으로 변경하는 기준으로 검증한다.
 - 신고 생성은 원본 API 기준 USER 권한으로 검증한다. ADMIN이 `POST /api/reports`를 호출하면 권한 실패로 본다.
 - 자기 게시글/댓글에 댓글 또는 대댓글을 작성한 경우 알림을 생성하지 않는 기준으로 검증한다.
+- 알림의 `comment_content`는 생성 시점의 댓글/대댓글 내용 스냅샷이며 원본 댓글/대댓글 수정 또는 삭제 후에도 변경하지 않는 기준으로 검증한다.
 
 ## 1. 공통 기준
 
@@ -248,10 +249,12 @@ Navigation data:
 - Given 댓글 알림이다
 - When 알림을 조회한다
 - Then `commented_post_id`가 대상 게시글이고 `commented_id`는 NULL이다
+- And `comment_content`는 알림 생성 시점의 댓글 내용이다
 
 - Given 대댓글 알림이다
 - When 알림을 조회한다
 - Then `commented_post_id`와 부모 댓글 id인 `commented_id`가 반환된다
+- And `comment_content`는 알림 생성 시점의 대댓글 내용이다
 
 Authorization failure:
 
@@ -472,7 +475,8 @@ Failures:
 - Given 댓글 작성자가 삭제한다
 - When `DELETE /api/comments/{comment_id}`를 호출한다
 - Then `204`를 반환한다
-- And 해당 댓글의 대댓글과 알림은 FK cascade 정책에 따라 함께 삭제된다
+- And 일반 댓글 삭제 시 해당 댓글의 대댓글은 FK cascade 정책에 따라 함께 삭제된다
+- And 삭제 전 생성된 알림은 유지되고 `comment_content`는 변경되지 않는다
 - And 해당 댓글 또는 함께 삭제된 대댓글을 대상으로 생성된 신고 이력은 유지된다
 
 - Given 작성자가 아닌 회원이 수정 또는 삭제한다

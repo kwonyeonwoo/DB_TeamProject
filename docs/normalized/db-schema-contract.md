@@ -243,17 +243,16 @@ Notes:
 |---|---|---:|---|---|---|
 | `id` | INTEGER identity | no | PK | - | 알림 식별자 |
 | `is_read` | BOOLEAN | no | CHECK boolean | FALSE | 읽음 여부 |
-| `comment_content` | CLOB | no | - | - | 알림 표시용 댓글 내용 |
+| `comment_content` | CLOB | no | - | - | 알림 생성 시점의 댓글/대댓글 내용 스냅샷. 원본 수정/삭제 후에도 변경하지 않음 |
 | `commented_post_id` | INTEGER | no | FK -> `post.id` | - | 댓글이 달린 게시글 id |
 | `commented_user_id` | INTEGER | no | FK -> `users.id` | - | 알림 수신자 id |
-| `commented_id` | INTEGER | yes | FK -> `comments.id` | - | 댓글 알림이면 NULL, 대댓글 알림이면 부모 댓글 id |
+| `commented_id` | INTEGER | yes | index only | - | 댓글 알림이면 NULL, 대댓글 알림이면 부모 댓글 id. 삭제 cascade FK가 아닌 이동용 힌트 |
 | `created_at` | TIMESTAMP | no | - | CURRENT_TIMESTAMP | 생성 일시 |
 
 Foreign keys:
 
 - `notification.commented_post_id -> post.id ON DELETE CASCADE ON UPDATE CASCADE`
 - `notification.commented_user_id -> users.id ON DELETE NO ACTION ON UPDATE CASCADE`
-- `notification.commented_id -> comments.id ON DELETE CASCADE ON UPDATE CASCADE`
 
 Indexes:
 
@@ -281,7 +280,7 @@ Indexes:
 |---|---|---|---|
 | `users` | `post`, `comments`, `likes`, `report`, `groups`, `group_members`, `schedules`, `notification` | NO ACTION for user references | CASCADE |
 | `post` | `likes`, `comments`, `file`, `notification` | CASCADE | CASCADE |
-| `comments` | `comments.parent_comment`, `notification.commented_id` | CASCADE | CASCADE |
+| `comments` | `comments.parent_comment` | CASCADE | CASCADE |
 | `groups` | `group_members`, `schedules` | CASCADE | CASCADE |
 
 `users` 외의 `post`, `comments`, `groups`, `schedules`에는 원본 물리 스키마 기준 별도 삭제 상태 컬럼을 두지 않는다.

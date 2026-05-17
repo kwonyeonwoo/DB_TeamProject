@@ -139,7 +139,7 @@ erDiagram
         CLOB comment_content
         INTEGER commented_post_id FK
         INTEGER commented_user_id FK
-        INTEGER commented_id FK
+        INTEGER commented_id
         TIMESTAMP created_at
     }
 ```
@@ -280,10 +280,10 @@ erDiagram
 |---|---:|---|---|---|
 | `id` | INTEGER | PK, identity | NN | 알림 식별자 |
 | `is_read` | BOOLEAN | default false | NN | 수신자의 알림 확인 여부 |
-| `comment_content` | CLOB |  | NN | 알림에 표시할 댓글 내용 |
+| `comment_content` | CLOB |  | NN | 알림 발생 당시 표시용 댓글/대댓글 내용. 원본 수정/삭제 후에도 변경하지 않는 스냅샷 값 |
 | `commented_post_id` | INTEGER | FK → `post.id` | NN | 댓글이 달린 게시글 id |
 | `commented_user_id` | INTEGER | FK → `users.id` | NN | 수신자 유저 id |
-| `commented_id` | INTEGER | FK → `comments.id` | NULL | 댓글 알림이면 NULL, 대댓글 알림이면 부모 댓글 id |
+| `commented_id` | INTEGER | index only | NULL | 댓글 알림이면 NULL, 대댓글 알림이면 부모 댓글 id. 삭제 cascade FK가 아닌 이동용 힌트 |
 | `created_at` | TIMESTAMP | default current timestamp | NN | 알림 생성 일시 |
 
 ## 6. 관계 상세
@@ -307,7 +307,7 @@ erDiagram
 | `post.id` → `file.id` | 1:N | 게시글 하나는 여러 첨부파일을 가질 수 있다. |
 | `post.id` → `notification.commented_post_id` | 1:N | 게시글 하나는 여러 알림의 대상 게시글이 될 수 있다. |
 | `users.id` → `notification.commented_user_id` | 1:N | 회원 한 명은 여러 알림을 받을 수 있다. |
-| `comments.id` → `notification.commented_id` | 0 또는 1:N | 부모 댓글 하나는 여러 대댓글 알림의 이동 대상이 될 수 있다. 댓글 알림에서는 `commented_id`가 NULL이다. |
+| `notification.commented_id` | navigation hint | 대댓글 알림에서 부모 댓글 위치로 이동하기 위한 nullable 값이다. 댓글 삭제 cascade FK가 아니다. |
 
 ## 7. 주요 제약 조건
 
@@ -332,11 +332,12 @@ erDiagram
 - `schedules.type`은 `1`, `2`, `3`, `4`, `5` 중 하나다.
 - `schedules.end_at`은 `start_at`보다 빠를 수 없다.
 - `file`은 `PRIMARY KEY(id, file_url)`로 같은 게시글에 같은 파일 저장 위치가 중복 저장되는 것을 방지한다.
-- `notification.commented_id`는 댓글 알림이면 NULL, 대댓글 알림이면 부모 댓글 id를 저장한다.
+- `notification.comment_content`는 알림 발생 당시 표시용 댓글/대댓글 내용을 보관하는 스냅샷 값이며 원본 수정/삭제 후에도 변경하지 않는다.
+- `notification.commented_id`는 댓글 알림이면 NULL, 대댓글 알림이면 부모 댓글 id를 저장하는 nullable navigation hint다. 댓글 삭제 cascade FK로 사용하지 않는다.
 
 ## 8. 구현 메모
 
-- `notification.commented_id`는 요구사항과 물리 스키마에 따라 NULL을 허용한다. 댓글 알림에서는 NULL, 대댓글 알림에서는 부모 댓글 id를 저장한다.
+- `notification.commented_id`는 요구사항과 물리 스키마에 따라 NULL을 허용한다. 댓글 알림에서는 NULL, 대댓글 알림에서는 부모 댓글 id를 저장하되 댓글 삭제 cascade FK로 사용하지 않는다.
 - `users.login_id`, `users.password`, `users.name`, `users.email_address`는 회원 가입 시 필수 입력값이지만, 탈퇴 처리 후 개인정보 삭제 또는 비식별화를 위해 ERD에서는 NULL 가능 컬럼으로 표현한다.
 - `post.updated_at`, `comments.updated_at`은 수정 여부 판단 기준으로 사용한다.
 - 신고 이력은 별도 `report` 테이블에 저장한다. 관리자 신고 처리 결과는 `report.status`, `processed_by`, `processed_at`으로만 저장하며, 신고 처리 자체가 게시글/댓글 삭제를 자동 수행하지 않는다. 신고 대상 게시글 또는 댓글이 삭제되어도 `report` 이력은 유지하고 관리자 화면에는 `삭제된 대상`으로 표시한다.

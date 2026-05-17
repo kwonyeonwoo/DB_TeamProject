@@ -79,7 +79,7 @@
 
 - ERD, 논리 스키마, 물리 스키마, DBML의 테이블과 주요 컬럼은 서로 일치한다.
 - `report.target_id`는 다형 참조로 두고 생성 시점 검증은 서비스 로직 또는 트리거로 처리한다는 점이 일치한다.
-- `users.status`, `users.deleted_at`, `groups.leader_id`, `group_members.joined_at`, `schedules.type`, `notification.commented_id` nullable 정책이 요구사항과 맞는다.
+- `users.status`, `users.deleted_at`, `groups.leader_id`, `group_members.joined_at`, `schedules.type`, `notification.commented_id` nullable navigation hint 정책이 요구사항과 맞는다.
 
 ## 5. Cross-Document Consistency
 

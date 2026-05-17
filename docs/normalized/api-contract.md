@@ -8,6 +8,7 @@
 
 - `USER-003`: 탈퇴 시 `status = DELETED`, `deleted_at = now()`를 기록하고 세션을 무효화한다. 개인정보성 컬럼은 탈퇴 시점에 즉시 변경하지 않고 `deleted_at`으로부터 6개월 후 NULL 또는 식별 불가 값으로 변경한다.
 - `COMMENT-002`/`COMMENT-003`: 댓글/대댓글 작성자와 알림 수신자가 같으면 알림을 생성하지 않는다.
+- `NOTI-001`: `notification.comment_content`는 알림 생성 시점의 댓글/대댓글 내용 스냅샷이며, 원본 댓글/대댓글 수정 또는 삭제 후에도 갱신하지 않는다.
 
 ## 1. 공통 계약
 
@@ -101,7 +102,7 @@ Rules:
 | COMMENT-002 | POST | `/api/posts/{post_id}/comments` | yes | JSON: `content`, `is_anonymous` | 201 Comment | 내용 필수. 게시글에 일반 댓글 작성. 댓글 작성자가 게시글 작성자와 다른 회원이면 댓글 알림을 생성하고, 같은 회원이면 알림을 생성하지 않는다. | 400 내용 누락, 404 게시글 없음 |
 | COMMENT-003 | POST | `/api/comments/{comment_id}/replies` | yes | JSON: `content`, `is_anonymous` | 201 Comment | 내용 필수. 부모 댓글은 일반 댓글이어야 한다. 대댓글에는 다시 대댓글 작성 불가. 대댓글 작성자가 부모 댓글 작성자와 다른 회원이면 대댓글 알림을 생성하고, 같은 회원이면 알림을 생성하지 않는다. | 400 내용 누락, 400 대댓글에 대댓글 작성, 404 부모 댓글 없음 |
 | COMMENT-004 | PATCH | `/api/comments/{comment_id}` | yes, author | JSON: `content`, `is_anonymous` | 200 Comment | 작성자만 수정. 수정 성공 시 `updated_at = now()`. | 400 수정 필드 없음, 403 작성자 아님, 404 댓글 없음 |
-| COMMENT-005 | DELETE | `/api/comments/{comment_id}` | yes, author | Path: `comment_id` | 204 없음 | 작성자만 삭제. 댓글 삭제 시 해당 댓글의 대댓글과 알림은 FK cascade 정책에 따라 함께 삭제된다. 해당 댓글 또는 함께 삭제된 대댓글 대상 신고 이력은 유지한다. | 403 작성자 아님, 404 댓글 없음 |
+| COMMENT-005 | DELETE | `/api/comments/{comment_id}` | yes, author | Path: `comment_id` | 204 없음 | 작성자만 삭제. 일반 댓글 삭제 시 해당 댓글의 대댓글은 FK cascade 정책에 따라 함께 삭제된다. 이미 생성된 알림은 유지하며 `notification.comment_content`는 변경하지 않는다. 해당 댓글 또는 함께 삭제된 대댓글 대상 신고 이력은 유지한다. | 403 작성자 아님, 404 댓글 없음 |
 
 ## 6. 추천, 신고, 알림 API
 

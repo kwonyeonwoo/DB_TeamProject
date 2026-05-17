@@ -185,10 +185,10 @@ Table file {
 Table notification {
   id int [pk, increment, not null, note: '알림 식별자']
   is_read boolean [default: false, not null, note: '수신자의 알림 확인 여부']
-  comment_content text [not null, note: '알림에 표시할 댓글 내용']
+  comment_content text [not null, note: '알림 발생 당시 수신자에게 표시할 댓글/대댓글 내용. 원본 수정/삭제 후에도 변경하지 않는 스냅샷 값']
   commented_post_id int [not null, ref: > post.id, note: '댓글이 달린 게시글 id']
   commented_user_id int [not null, ref: > users.id, note: '수신자 유저 id']
-  commented_id int [ref: > comments.id, note: '댓글 알림이면 NULL, 대댓글 알림이면 부모 댓글 id']
+  commented_id int [note: '댓글 알림이면 NULL, 대댓글 알림이면 부모 댓글 id. 삭제 cascade FK가 아닌 이동용 힌트']
   created_at timestamp [default: `now()`, not null, note: '알림 생성 일시']
 
   indexes {
