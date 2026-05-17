@@ -95,19 +95,11 @@ export function PostListPage() {
 
   return (
     <>
-      <section className="page-header">
-        <p className="eyebrow">게시글</p>
-        <h1 className="page-title">게시글 목록</h1>
-        <p className="page-description">
-          제목, 내용, 작성자, 분류 조건으로 학습 자료를 찾아보고 필요한 글을 빠르게
-          확인합니다.
-        </p>
-        <div className="button-row">
-          <Link className="button" to="/posts/write">
-            글 작성
-          </Link>
-        </div>
-      </section>
+      <div className="page-action-row">
+        <Link className="button" to="/posts/write">
+          글 작성
+        </Link>
+      </div>
 
       <div className="page-with-sidebar">
         <div className="page-main-column">
@@ -120,31 +112,27 @@ export function PostListPage() {
               >
                 <option value="keyword">제목/내용</option>
                 <option value="author">작성자</option>
-                <option value="category">분류</option>
+                <option value="category">학과/과목</option>
               </select>
             </label>
             {searchType === 'category' ? (
               <>
                 <label className="field compact">
-                  주 분류
-                  <select
+                  학과
+                  <input
+                    type="search"
                     value={mainCategory}
                     onChange={(event) => setMainCategory(event.target.value)}
-                  >
-                    <option value="">전체</option>
-                    <option value="자료">자료</option>
-                    <option value="질문">질문</option>
-                    <option value="스터디">스터디</option>
-                    <option value="공지">공지</option>
-                  </select>
+                    placeholder="예: 컴퓨터공학과"
+                  />
                 </label>
                 <label className="field compact">
-                  세부 분류
+                  과목
                   <input
                     type="search"
                     value={subCategory}
                     onChange={(event) => setSubCategory(event.target.value)}
-                    placeholder="예: SQL"
+                    placeholder="예: 데이터베이스"
                   />
                 </label>
               </>

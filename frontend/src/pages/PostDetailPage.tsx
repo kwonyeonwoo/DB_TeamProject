@@ -266,15 +266,6 @@ export function PostDetailPage() {
 
   return (
     <>
-      <section className="page-header">
-        <p className="eyebrow">게시글</p>
-        <h1 className="page-title">게시글 상세</h1>
-        <p className="page-description">
-          상세 조회 시 문서 기준에 따라 조회수가 증가하고, 첨부 파일, 좋아요,
-          댓글과 대댓글을 함께 표시합니다.
-        </p>
-      </section>
-
       {successMessage && <p className="form-success">{successMessage}</p>}
       {(isInvalidPostId || errorMessage) && (
         <p className="form-error">

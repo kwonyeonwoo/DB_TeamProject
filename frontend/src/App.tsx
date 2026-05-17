@@ -7,7 +7,6 @@ import { AdminReportPage } from './pages/AdminReportPage'
 import { GroupPage } from './pages/GroupPage'
 import { LoginPage } from './pages/LoginPage'
 import { MainPage } from './pages/MainPage'
-import { MyPage } from './pages/MyPage'
 import { PostDetailPage } from './pages/PostDetailPage'
 import { PostListPage } from './pages/PostListPage'
 import { PostWritePage } from './pages/PostWritePage'
@@ -73,14 +72,6 @@ function App() {
               element={
                 <RequireAuth>
                   <PostWritePage />
-                </RequireAuth>
-              }
-            />
-            <Route
-              path="/mypage"
-              element={
-                <RequireAuth>
-                  <MyPage />
                 </RequireAuth>
               }
             />

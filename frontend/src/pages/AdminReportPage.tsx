@@ -76,15 +76,6 @@ export function AdminReportPage() {
 
   return (
     <>
-      <section className="page-header">
-        <p className="eyebrow">관리자</p>
-        <h1 className="page-title">신고 관리</h1>
-        <p className="page-description">
-          ADMIN 권한에서 신고 목록을 확인하고 처리 상태를 변경합니다. 문서 기준에
-          따라 신고 처리 시 게시글이나 댓글을 자동 삭제하지 않습니다.
-        </p>
-      </section>
-
       {errorMessage && <p className="form-error">{errorMessage}</p>}
       {successMessage && <p className="form-success">{successMessage}</p>}
 

@@ -5,7 +5,6 @@ import { NotificationPopup } from './NotificationPopup'
 const authenticatedNavItems = [
   { to: '/', label: '홈' },
   { to: '/posts', label: '게시글' },
-  { to: '/posts/write', label: '글쓰기' },
   { to: '/schedule', label: '일정' },
   { to: '/groups', label: '그룹' },
 ]

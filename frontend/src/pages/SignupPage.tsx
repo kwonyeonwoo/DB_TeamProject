@@ -31,15 +31,6 @@ export function SignupPage() {
 
   return (
     <>
-      <section className="page-header">
-        <p className="eyebrow">인증</p>
-        <h1 className="page-title">회원가입</h1>
-        <p className="page-description">
-          가입 성공 후 로그인 화면으로 이동하는 흐름을 기준으로 구성합니다.
-          역할은 문서 기준에 따라 기본 USER로 처리됩니다.
-        </p>
-      </section>
-
       <form className="auth-card" onSubmit={handleSubmit}>
         {errorMessage && <p className="form-error">{errorMessage}</p>}
         <div className="field-stack">

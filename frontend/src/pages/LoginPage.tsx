@@ -36,15 +36,6 @@ export function LoginPage() {
 
   return (
     <>
-      <section className="page-header">
-        <p className="eyebrow">인증</p>
-        <h1 className="page-title">로그인</h1>
-        <p className="page-description">
-          서버 세션 기반 인증 API와 연결될 화면입니다. 브라우저 저장소에 토큰을
-          저장하지 않고, 요청은 세션 쿠키를 포함하도록 구성합니다.
-        </p>
-      </section>
-
       <form className="auth-card" onSubmit={handleSubmit}>
         {locationState?.signupComplete && (
           <p className="form-success">회원가입이 완료되었습니다. 로그인해 주세요.</p>

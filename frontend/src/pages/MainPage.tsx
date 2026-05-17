@@ -36,12 +36,6 @@ export function MainPage() {
     <>
       <section className="home-hero">
         <div className="home-hero-copy">
-          <p className="eyebrow">학업 자료 공유 플랫폼</p>
-          <h1 className="page-title">자료와 일정을 한곳에서 관리합니다</h1>
-          <p className="page-description">
-            게시글, 댓글, 알림, 일정, 그룹 기능을 연결해 학습 흐름을 빠르게 확인할 수
-            있는 작업 공간입니다.
-          </p>
           <div className="home-hero-actions">
             <Link className="button" to="/posts">
               자료 둘러보기

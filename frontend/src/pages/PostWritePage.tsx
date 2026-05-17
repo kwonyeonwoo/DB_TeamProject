@@ -5,8 +5,6 @@ import { getErrorMessage } from '../api/errors'
 import { postsApi } from '../api/posts'
 import type { Post } from '../api/posts'
 
-const mainCategoryOptions = ['자료', '질문', '스터디', '공지']
-
 export function PostWritePage() {
   const navigate = useNavigate()
   const { postId } = useParams()
@@ -15,7 +13,7 @@ export function PostWritePage() {
   const [editingPost, setEditingPost] = useState<Post | null>(null)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
-  const [mainCategory, setMainCategory] = useState('자료')
+  const [mainCategory, setMainCategory] = useState('')
   const [subCategory, setSubCategory] = useState('')
   const [isAnonymous, setIsAnonymous] = useState(false)
   const [files, setFiles] = useState<File[]>([])
@@ -87,15 +85,6 @@ export function PostWritePage() {
 
   return (
     <>
-      <section className="page-header">
-        <p className="eyebrow">게시글</p>
-        <h1 className="page-title">{isEditMode ? '게시글 수정' : '게시글 작성'}</h1>
-        <p className="page-description">
-          게시글 저장 요청은 문서 기준에 맞춰 `multipart/form-data`를 사용합니다.
-          수정 시 새 파일을 선택하면 기존 파일 목록을 대체하는 흐름으로 보냅니다.
-        </p>
-      </section>
-
       {errorMessage && <p className="form-error">{errorMessage}</p>}
 
       <div className="post-write-layout">
@@ -113,20 +102,18 @@ export function PostWritePage() {
         <form className="form-panel" onSubmit={handleSubmit}>
         <div className="field-stack">
           <label className="field">
-            주 분류
-            <select
+            대주제 (학과)
+            <input
+              type="text"
               value={mainCategory}
               name="main_category"
+              placeholder="예: 컴퓨터공학과"
               onChange={(event) => setMainCategory(event.target.value)}
               required
-            >
-              {mainCategoryOptions.map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </select>
+            />
           </label>
           <label className="field">
-            세부 분류
+            소주제 (과목)
             <input
               type="text"
               name="sub_category"
@@ -172,7 +159,6 @@ export function PostWritePage() {
                   <li key={file.id}>{file.file_url.split('/').at(-1)}</li>
                 ))}
               </ul>
-              <p className="muted">새 파일을 선택하면 기존 파일 목록을 대체합니다.</p>
             </div>
           ) : null}
           <label className="check-field">

@@ -1,11 +1,15 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/useAuth'
 
-export function MyPage() {
+interface ProfileModalProps {
+  onClose: () => void
+}
+
+export function ProfileModal({ onClose }: ProfileModalProps) {
   const navigate = useNavigate()
-  const { deleteMe, errorMessage, updateMe, user } = useAuth()
+  const { clearError, deleteMe, errorMessage, updateMe, user } = useAuth()
   const [name, setName] = useState(user?.name ?? '')
   const [emailAddress, setEmailAddress] = useState(user?.email_address ?? '')
   const [currentPassword, setCurrentPassword] = useState('')
@@ -13,6 +17,10 @@ export function MyPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  useEffect(() => {
+    clearError()
+  }, [clearError])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -47,6 +55,7 @@ export function MyPage() {
 
     try {
       await deleteMe()
+      onClose()
       navigate('/login', { replace: true })
     } finally {
       setIsDeleting(false)
@@ -54,18 +63,25 @@ export function MyPage() {
   }
 
   return (
-    <>
-      <section className="page-header">
-        <p className="eyebrow">내 정보</p>
-        <h1 className="page-title">마이페이지</h1>
-        <p className="page-description">
-          내 프로필을 확인하고 수정하는 화면입니다. 회원 탈퇴 시 개인 일정과
-          그룹 참여 정보는 문서에 정의된 정책에 따라 처리됩니다.
-        </p>
-      </section>
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        className="modal-panel profile-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="profile-modal-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="modal-header">
+          <div>
+            <p className="eyebrow">내 정보</p>
+            <h2 id="profile-modal-title">마이페이지</h2>
+          </div>
+          <button className="text-button" type="button" onClick={onClose}>
+            닫기
+          </button>
+        </div>
 
-      <section className="profile-layout">
-        <form className="form-panel" onSubmit={handleSubmit}>
+        <form className="profile-modal-form" onSubmit={handleSubmit}>
           {successMessage && <p className="form-success">{successMessage}</p>}
           {errorMessage && <p className="form-error">{errorMessage}</p>}
           <div className="field-stack">
@@ -110,6 +126,18 @@ export function MyPage() {
               />
             </label>
           </div>
+
+          <dl className="info-list profile-modal-status">
+            <div>
+              <dt>역할</dt>
+              <dd>{user?.role}</dd>
+            </div>
+            <div>
+              <dt>상태</dt>
+              <dd>{user?.status ?? 'ACTIVE'}</dd>
+            </div>
+          </dl>
+
           <div className="button-row">
             <button className="button" type="submit" disabled={isSubmitting}>
               {isSubmitting ? '저장 중' : '저장'}
@@ -124,21 +152,7 @@ export function MyPage() {
             </button>
           </div>
         </form>
-
-        <aside className="panel profile-summary">
-          <h2>계정 상태</h2>
-          <dl className="info-list">
-            <div>
-              <dt>역할</dt>
-              <dd>{user?.role}</dd>
-            </div>
-            <div>
-              <dt>상태</dt>
-              <dd>{user?.status ?? 'ACTIVE'}</dd>
-            </div>
-          </dl>
-        </aside>
       </section>
-    </>
+    </div>
   )
 }

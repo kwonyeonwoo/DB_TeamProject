@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { getErrorMessage } from '../api/errors'
 import { groupsApi } from '../api/groups'
 import type { Group, GroupDetailResponse } from '../api/groups'
@@ -235,15 +236,6 @@ export function GroupPage() {
 
   return (
     <>
-      <section className="page-header">
-        <p className="eyebrow">그룹</p>
-        <h1 className="page-title">스터디 그룹</h1>
-        <p className="page-description">
-          내 그룹 목록, 그룹 생성, 코드 참여, 멤버 확인, 그룹 일정 관리를 한
-          흐름으로 연결합니다.
-        </p>
-      </section>
-
       {errorMessage && <p className="form-error">{errorMessage}</p>}
       {successMessage && <p className="form-success">{successMessage}</p>}
 
@@ -326,6 +318,9 @@ export function GroupPage() {
                   <button className="button" type="button" onClick={openCreateScheduleModal}>
                     그룹 일정 등록
                   </button>
+                  <Link className="button secondary" to={`/schedule?group=${groupDetail.group.id}`}>
+                    그룹 캘린더
+                  </Link>
                 </div>
                 <div className="member-list">
                   {groupDetail.members.map((member) => (
