@@ -114,4 +114,28 @@ public class User {
     public UserRole getRole() {
         return role;
     }
+
+    public void changeName(String name) {
+        this.name = name;
+    }
+
+    public void changeEmailAddress(String emailAddress) {
+        this.emailAddress = emailAddress;
+    }
+
+    public void changePassword(String password) {
+        this.password = password;
+    }
+
+    public void markDeleted(LocalDateTime deletedAt) {
+        this.status = UserStatus.DELETED;
+        this.deletedAt = deletedAt;
+    }
+
+    public void clearPersonalData() {
+        this.loginId = null;
+        this.password = null;
+        this.name = null;
+        this.emailAddress = null;
+    }
 }
