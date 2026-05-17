@@ -8,7 +8,6 @@ const authenticatedNavItems = [
   { to: '/posts/write', label: '글쓰기' },
   { to: '/schedule', label: '일정' },
   { to: '/groups', label: '그룹' },
-  { to: '/mypage', label: '마이페이지' },
 ]
 
 const guestNavItems = [

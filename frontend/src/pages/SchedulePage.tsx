@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { getErrorMessage } from '../api/errors'
 import { schedulesApi } from '../api/schedules'
 import type { Schedule, SaveScheduleRequest } from '../api/schedules'
+import { UserSummaryCard } from '../components/UserSummaryCard'
 
 const scheduleTypes = [
   { value: 1, label: '과제', className: 'assignment' },
@@ -279,6 +280,7 @@ export function SchedulePage() {
 
       <section className="calendar-shell" aria-label="월간 일정 캘린더">
         <aside className="calendar-sidebar">
+          <UserSummaryCard />
           <div className="mini-calendar-card">
             <span className="calendar-chip">이번 달 목표</span>
             <strong>{getMonthLabel(currentMonth)}</strong>
