@@ -57,4 +57,24 @@ public class Group {
     public Integer getId() {
         return id;
     }
+
+    public String getGroupCode() {
+        return groupCode;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public Integer getLeaderId() {
+        return leaderId;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void changeLeaderId(Integer leaderId) {
+        this.leaderId = leaderId;
+    }
 }
