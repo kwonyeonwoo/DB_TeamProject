@@ -9,6 +9,7 @@
 - `USER-003`: 탈퇴 시 `status = DELETED`, `deleted_at = now()`를 기록하고 세션을 무효화한다. 개인정보성 컬럼은 탈퇴 시점에 즉시 변경하지 않고 `deleted_at`으로부터 6개월 후 NULL 또는 식별 불가 값으로 변경한다.
 - `COMMENT-002`/`COMMENT-003`: 댓글/대댓글 작성자와 알림 수신자가 같으면 알림을 생성하지 않는다.
 - `NOTI-001`: `notification.comment_content`는 알림 생성 시점의 댓글/대댓글 내용 스냅샷이며, 원본 댓글/대댓글 수정 또는 삭제 후에도 갱신하지 않는다.
+- `COMMON-AUTH`: 세션 기반 인증에서 `AUTH-001` 회원 가입과 `AUTH-002` 로그인을 제외한 `POST`, `PATCH`, `DELETE` API는 CSRF 토큰을 요구한다.
 
 ## 1. 공통 계약
 
@@ -17,7 +18,7 @@
 | Base path | `/api` |
 | 기본 Body format | JSON |
 | 파일 업로드 Body format | `multipart/form-data` |
-| 인증 방식 | 서버 세션 기반 |
+| 인증 방식 | 서버 세션 기반 + 상태 변경 API CSRF 토큰 |
 | ID 타입 | integer |
 | 일시 타입 | ISO-8601 string |
 
@@ -35,7 +36,7 @@
 |---:|---|
 | 400 | 요청 형식 또는 검증 실패 |
 | 401 | 인증되지 않음 |
-| 403 | 권한 없음 |
+| 403 | 권한 없음 또는 CSRF 토큰 누락/불일치 |
 | 404 | 대상 리소스 없음 |
 | 409 | 중복 또는 상태 충돌 |
 
@@ -53,6 +54,9 @@ Rules:
 - 실패 응답 body는 `code`, `message`를 필수로 포함한다.
 - `details`는 입력값별 상세 오류가 필요한 경우에만 선택값으로 포함한다.
 - `details`가 포함되더라도 `code`, `message`는 항상 포함한다.
+- 인증 필요 API에 인증 세션이 없으면 `401`을 반환한다.
+- `AUTH-001`, `AUTH-002`를 제외한 `POST`, `PATCH`, `DELETE` API는 서버가 발급한 CSRF 토큰을 요청에 포함해야 한다.
+- 인증 세션은 있지만 CSRF 토큰이 누락되었거나 일치하지 않으면 `403`과 `ACCESS_DENIED` 오류 응답을 반환한다.
 
 ## 2. 리소스 응답 타입
 
@@ -119,7 +123,7 @@ Rules:
 |---|---|---|---|---|---|---|---|
 | CAL-001 | GET | `/api/me/schedules` | yes | Query: `start_at`, `end_at` ISO-8601 optional | 200 `{ "items": Schedule[] }` | 현재 사용자의 `group_id = null` 개인 일정만 조회. `start_at`/`end_at`이 모두 없으면 전체 개인 일정. `start_at`만 있으면 `schedules.end_at >= start_at`인 일정. `end_at`만 있으면 `schedules.start_at <= end_at`인 일정. 둘 다 있으면 `schedules.start_at <= end_at AND schedules.end_at >= start_at`인 기간 겹침 일정. | 400 날짜 형식 오류, 400 `end_at < start_at`, 401 인증 없음, 403 다른 회원 일정 접근 |
 | CAL-002 | POST | `/api/me/schedules` | yes | JSON: `title`, `start_at`, `end_at`, `description`, `type` | 201 Schedule | `title`, `start_at`, `end_at`, `type` 필수. `type`은 1..5. `end_at >= start_at`. | 400 필수 누락, 400 유효하지 않은 type, 400 종료가 시작보다 빠름 |
-| CAL-003 | PATCH | `/api/me/schedules/{schedule_id}` | yes, owner | JSON: `title`, `start_at`, `end_at`, `description`, `type` | 200 Schedule | 본인 개인 일정만 수정. 수정 성공 시 `updated_at = now()`. | 400 유효하지 않은 type/시간, 403 다른 회원 일정 접근, 404 일정 없음 |
+| CAL-003 | PATCH | `/api/me/schedules/{schedule_id}` | yes, owner | JSON: `title`, `start_at`, `end_at`, `description`, `type` | 200 Schedule | 본인 개인 일정만 수정. 수정 필드 중 하나 이상 필요. 수정 성공 시 `updated_at = now()`. | 400 수정 필드 없음, 400 유효하지 않은 type/시간, 403 다른 회원 일정 접근, 404 일정 없음 |
 | CAL-004 | DELETE | `/api/me/schedules/{schedule_id}` | yes, owner | Path: `schedule_id` | 204 없음 | 본인 개인 일정만 삭제. | 403 다른 회원 일정 접근, 404 일정 없음 |
 
 ## 8. 그룹 API

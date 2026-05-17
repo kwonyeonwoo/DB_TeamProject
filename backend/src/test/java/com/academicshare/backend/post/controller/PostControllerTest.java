@@ -54,7 +54,7 @@ import org.springframework.transaction.annotation.Transactional;
 class PostControllerTest {
 
     private static final String ANONYMOUS_DISPLAY_NAME = "\uC775\uBA85_1";
-    private static final String DELETED_USER_DISPLAY_NAME = "\uD0C8\uD1F4\uD55C \uC0AC\uC6A9\uC790";
+    private static final String DELETED_USER_DISPLAY_NAME = "\uD0C8\uD1F4\uD55C \uC720\uC800";
 
     @Autowired
     private MockMvc mockMvc;

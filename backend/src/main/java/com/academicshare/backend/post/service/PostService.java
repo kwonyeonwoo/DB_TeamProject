@@ -39,7 +39,7 @@ public class PostService {
     private static final int MAX_TITLE_LENGTH = 255;
     private static final int MAX_CATEGORY_LENGTH = 100;
     private static final String ANONYMOUS_DISPLAY_NAME = "\uC775\uBA85_1";
-    private static final String DELETED_USER_DISPLAY_NAME = "\uD0C8\uD1F4\uD55C \uC0AC\uC6A9\uC790";
+    private static final String DELETED_USER_DISPLAY_NAME = "\uD0C8\uD1F4\uD55C \uC720\uC800";
 
     private final PostRepository postRepository;
     private final PostFileRepository postFileRepository;
