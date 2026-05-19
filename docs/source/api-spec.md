@@ -569,6 +569,39 @@ Errors:
 | 403 | 작성자가 아닌 회원의 수정 시도 |
 | 404 | 게시글 없음 |
 
+### P-04A. 게시글 첨부파일 다운로드
+
+| 항목 | 내용 |
+|---|---|
+| Method | `GET` |
+| Path | `/api/posts/{post_id}/files/{file_name}` |
+| 인증 | 인증 필요 |
+| Trace | 요구사항 3-1, 3-2, UF-09, UF-10, SC-09, SC-10, `file` |
+
+Path parameters:
+
+| 이름 | 타입 | 필수 | 설명 |
+|---|---|---|---|
+| `post_id` | integer | yes | 게시글 id |
+| `file_name` | string | yes | `/uploads/posts/{post_id}/{file_name}`의 마지막 경로 값. 현재 구현에서는 UUID 저장명 |
+
+Response `200`: binary file
+
+Processing:
+
+- DB의 `file.file_url`에 `/uploads/posts/{post_id}/{file_name}` 값이 존재해야 한다.
+- 실제 파일은 `app.upload.root/posts/{post_id}/{file_name}`에서 조회한다.
+- DB에는 원본 파일명, 파일 크기, MIME 타입을 저장하지 않으므로 응답 파일명은 저장된 `file_name`을 사용한다.
+- 게시글 상세 응답의 `files[].file_url`은 기존 계약대로 `/uploads/posts/{post_id}/{file_name}` 형식을 유지한다.
+- 브라우저 직접 접근용 정적 리소스 경로는 base path를 붙인 `/api/uploads/posts/{post_id}/{file_name}`이다.
+- `/api/uploads/**`는 서버 로컬 `app.upload.root` 아래 파일을 정적 리소스로 제공한다.
+
+Errors:
+
+| Status | 조건 |
+|---:|---|
+| 404 | 게시글 첨부파일 DB row가 없거나 실제 파일이 없음 |
+
 ### P-05. 게시글 삭제
 
 | 항목 | 내용 |

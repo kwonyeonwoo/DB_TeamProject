@@ -59,6 +59,7 @@
 | POST-003 | `400` 필수 누락, `400` 파일 업로드 실패 |
 | POST-004 | `400` 수정 필드 없음, `403` 작성자 아님, `404` 게시글 없음 |
 | POST-005 | `403` 작성자 아님, `404` 게시글 없음 |
+| POST-FILE-001 | `404` 첨부파일 DB row 없음, `404` 실제 파일 없음 |
 | POST-006 | `404` 게시글 없음, `409` 이미 추천 |
 | POST-007 | `404` 게시글 없음, `404` 추천 없음 |
 | COMMENT-001 | `404` 게시글 없음 |
@@ -403,6 +404,20 @@ Failures:
 
 - Given 수정 또는 삭제 대상 게시글이 없다
 - When 게시글 수정 또는 삭제를 요청한다
+- Then `404`를 반환한다
+
+### POST-FILE-001. 게시글 첨부파일 다운로드
+
+- Given 게시글 첨부파일 DB row가 있고 실제 파일이 `app.upload.root/posts/{post_id}/{file_name}`에 저장되어 있다
+- When `GET /api/posts/{post_id}/files/{file_name}`를 호출한다
+- Then `200`과 파일 바이트를 반환한다
+
+- Given 게시글 상세 응답의 `files[].file_url`이 `/uploads/posts/{post_id}/{file_name}`이다
+- When base path를 붙인 `GET /api/uploads/posts/{post_id}/{file_name}`를 호출한다
+- Then `200`과 같은 파일 바이트를 반환한다
+
+- Given 첨부파일 DB row가 없거나 실제 파일이 없다
+- When 첨부파일 다운로드를 요청한다
 - Then `404`를 반환한다
 
 ### POST-006/POST-007. 추천 등록 및 취소

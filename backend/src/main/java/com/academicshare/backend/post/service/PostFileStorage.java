@@ -18,12 +18,12 @@ public class PostFileStorage {
     private final Path uploadRoot;
 
     public PostFileStorage(@Value("${app.upload.root:uploads}") String uploadRoot) {
-        this.uploadRoot = Path.of(uploadRoot);
+        this.uploadRoot = Path.of(uploadRoot).toAbsolutePath().normalize();
     }
 
     public String store(Integer postId, MultipartFile file) {
         String storedName = UUID.randomUUID().toString();
-        Path directory = uploadRoot.resolve("posts").resolve(postId.toString());
+        Path directory = postDirectory(postId);
         Path target = directory.resolve(storedName);
 
         try {
@@ -35,6 +35,30 @@ public class PostFileStorage {
             throw new ApiException(ErrorCode.VALIDATION_ERROR, "Failed to upload file.");
         }
 
+        return fileUrl(postId, storedName);
+    }
+
+    public Path resolve(Integer postId, String storedName) {
+        Path directory = postDirectory(postId);
+        Path target = directory.resolve(storedName).normalize();
+
+        if (!target.startsWith(directory)) {
+            throw new ApiException(ErrorCode.RESOURCE_NOT_FOUND);
+        }
+
+        return target;
+    }
+
+    public String fileUrl(Integer postId, String storedName) {
         return "/uploads/posts/" + postId + "/" + storedName;
+    }
+
+    public String resourceLocation() {
+        String location = uploadRoot.toUri().toString();
+        return location.endsWith("/") ? location : location + "/";
+    }
+
+    private Path postDirectory(Integer postId) {
+        return uploadRoot.resolve("posts").resolve(postId.toString()).normalize();
     }
 }

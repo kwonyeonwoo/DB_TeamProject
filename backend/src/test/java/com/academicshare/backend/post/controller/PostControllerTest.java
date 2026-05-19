@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -237,9 +238,26 @@ class PostControllerTest {
 
         JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
         Integer postId = response.get("id").asInt();
+        String fileUrl = response.get("files").get(0).get("file_url").asText();
+        String fileName = fileUrl.substring(fileUrl.lastIndexOf('/') + 1);
         assertThat(postFileRepository.findByIdOrderByFileUrlAsc(postId))
                 .extracting(PostFile::getFileUrl)
-                .allMatch(fileUrl -> fileUrl.startsWith("/uploads/posts/" + postId + "/"));
+                .allMatch(storedFileUrl -> storedFileUrl.startsWith("/uploads/posts/" + postId + "/"));
+
+        mockMvc.perform(get(fileUrl)
+                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId()))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes("file-content".getBytes(StandardCharsets.UTF_8)));
+
+        mockMvc.perform(get("/posts/{postId}/files/{fileName}", postId, fileName)
+                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId()))
+                .andExpect(status().isOk())
+                .andExpect(content().bytes("file-content".getBytes(StandardCharsets.UTF_8)));
+
+        mockMvc.perform(get("/posts/{postId}/files/{fileName}", postId, "missing-file")
+                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(ErrorCode.RESOURCE_NOT_FOUND.name()));
 
         mockMvc.perform(multipart("/posts")
                         .param("content", "Missing title")
