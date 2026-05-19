@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { commentsApi } from '../api/comments'
 import { getErrorMessage } from '../api/errors'
@@ -7,13 +7,122 @@ import { postsApi } from '../api/posts'
 import { reportReasonLabels, reportsApi } from '../api/reports'
 import { useAuth } from '../contexts/useAuth'
 import type { Comment, SaveCommentRequest } from '../api/comments'
-import type { Post } from '../api/posts'
+import type { Post, PostFile } from '../api/posts'
 import type { ReportTargetType } from '../api/reports'
 
 interface ReportTarget {
   target_type: ReportTargetType
   target_id: number
   label: string
+}
+
+function getAttachmentUrl(file: PostFile) {
+  if (file.preview_url) {
+    return file.preview_url
+  }
+
+  if (/^(https?:|data:|blob:)/i.test(file.file_url)) {
+    return file.file_url
+  }
+
+  if (file.file_url.startsWith('/api/uploads/')) {
+    return file.file_url
+  }
+
+  if (file.file_url.startsWith('/uploads/')) {
+    return `/api${file.file_url}`
+  }
+
+  return file.file_url
+}
+
+function getAttachmentName(file: PostFile) {
+  const rawFallbackName = file.file_url.split('/').at(-1) ?? '첨부 파일'
+
+  try {
+    return file.file_name ?? decodeURIComponent(rawFallbackName)
+  } catch {
+    return file.file_name ?? rawFallbackName
+  }
+}
+
+function hasImageExtension(value: string) {
+  return /\.(apng|avif|gif|jpe?g|png|svg|webp)$/i.test(value.split('?')[0] ?? '')
+}
+
+function isImageAttachment(file: PostFile) {
+  return (
+    file.content_type?.startsWith('image/') ||
+    hasImageExtension(file.file_name ?? '') ||
+    hasImageExtension(file.file_url)
+  )
+}
+
+function resolveImageMarker(marker: string, files: PostFile[]) {
+  const normalizedMarker = marker.trim()
+  const imageIndex = Number(normalizedMarker)
+
+  if (Number.isInteger(imageIndex) && imageIndex > 0) {
+    return files[imageIndex - 1] ?? null
+  }
+
+  return (
+    files.find(
+      (file) =>
+        getAttachmentName(file) === normalizedMarker ||
+        file.file_url.endsWith(normalizedMarker),
+    ) ?? null
+  )
+}
+
+function getInlineImageUrls(content: string, files: PostFile[]) {
+  return Array.from(content.matchAll(/\[이미지:(.+?)\]/g))
+    .map((match) => resolveImageMarker(match[1], files))
+    .filter((file): file is PostFile => Boolean(file))
+    .map((file) => getAttachmentUrl(file))
+}
+
+function renderPostContent(content: string, files: PostFile[]) {
+  const imageTokenPattern = /\[이미지:(.+?)\]/g
+  const nodes: ReactNode[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = imageTokenPattern.exec(content)) !== null) {
+    const text = content.slice(lastIndex, match.index)
+
+    if (text.trim()) {
+      nodes.push(<p key={`text-${match.index}`}>{text}</p>)
+    }
+
+    const file = resolveImageMarker(match[1], files)
+
+    if (file) {
+      const fileName = getAttachmentName(file)
+      nodes.push(
+        <figure className="post-inline-image" key={`image-${match.index}`}>
+          <img src={getAttachmentUrl(file)} alt={fileName} />
+          <figcaption>{fileName}</figcaption>
+        </figure>,
+      )
+    } else {
+      nodes.push(
+        <p className="muted" key={`missing-image-${match.index}`}>
+          선택한 이미지를 찾을 수 없습니다.
+        </p>,
+      )
+    }
+
+    lastIndex = match.index + match[0].length
+  }
+
+  const remainingText = content.slice(lastIndex)
+
+  if (remainingText.trim()) {
+    nodes.push(<p key="text-last">{remainingText}</p>)
+  }
+
+  return nodes.length ? nodes : <p>{content}</p>
 }
 
 export function PostDetailPage() {
@@ -264,6 +373,12 @@ export function PostDetailPage() {
   }
 
   const parentComments = comments.filter((comment) => comment.parent_comment === null)
+  const inlineImageUrls = post ? getInlineImageUrls(post.content, post.files) : []
+  const unplacedImageFiles =
+    post?.files.filter(
+      (file) =>
+        isImageAttachment(file) && !inlineImageUrls.includes(getAttachmentUrl(file)),
+    ) ?? []
 
   return (
     <>
@@ -290,15 +405,31 @@ export function PostDetailPage() {
               <span>좋아요 {post.like_count}</span>
             </div>
             <h2>{post.title}</h2>
-            <p className="detail-body">{post.content}</p>
+            <div className="detail-body">{renderPostContent(post.content, post.files)}</div>
+
+            {unplacedImageFiles.length > 0 && (
+              <div className="attachment-preview-grid">
+                {unplacedImageFiles.map((file) => {
+                  const fileName = getAttachmentName(file)
+                  return (
+                    <figure className="attachment-preview" key={file.file_url}>
+                      <img src={getAttachmentUrl(file)} alt={fileName} />
+                      <figcaption>{fileName}</figcaption>
+                    </figure>
+                  )
+                })}
+              </div>
+            )}
 
             {post.files.length > 0 && (
               <div className="attachment-list">
                 <h3>첨부 파일</h3>
                 <ul>
                   {post.files.map((file) => (
-                    <li key={file.id}>
-                      <a href={file.file_url}>{file.file_url.split('/').at(-1)}</a>
+                    <li key={file.file_url}>
+                      <a href={getAttachmentUrl(file)} target="_blank" rel="noreferrer">
+                        {getAttachmentName(file)}
+                      </a>
                     </li>
                   ))}
                 </ul>

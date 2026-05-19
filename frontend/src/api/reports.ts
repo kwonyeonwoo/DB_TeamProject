@@ -178,4 +178,8 @@ export const reportsApi = {
     })
     return response.data
   },
+
+  async cancelReport(reportId: number) {
+    return this.processReport(reportId)
+  },
 }

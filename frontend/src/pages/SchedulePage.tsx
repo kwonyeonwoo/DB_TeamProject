@@ -81,6 +81,21 @@ function getMonthRange(month: Date) {
   }
 }
 
+function getScheduleDateKeys(schedule: Schedule) {
+  const start = new Date(schedule.start_at)
+  const end = new Date(schedule.end_at)
+  const endTime = end.getTime()
+  const dates: string[] = []
+  const current = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+
+  while (current.getTime() <= endTime) {
+    dates.push(getDateKey(current))
+    current.setDate(current.getDate() + 1)
+  }
+
+  return dates
+}
+
 export function SchedulePage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const initialGroupParam = searchParams.get('group')
@@ -114,8 +129,9 @@ export function SchedulePage() {
 
   const schedulesByDate = useMemo(() => {
     return schedules.reduce<Record<string, Schedule[]>>((groups, schedule) => {
-      const key = getDateKey(new Date(schedule.start_at))
-      groups[key] = [...(groups[key] ?? []), schedule]
+      getScheduleDateKeys(schedule).forEach((key) => {
+        groups[key] = [...(groups[key] ?? []), schedule]
+      })
       return groups
     }, {})
   }, [schedules])

@@ -74,6 +74,16 @@ export function AdminReportPage() {
     }
   }
 
+  const handleCancel = async (report: Report) => {
+    try {
+      await reportsApi.cancelReport(report.id)
+      setSuccessMessage(`신고 #${report.id}이 취소 처리되었습니다.`)
+      await loadReports()
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error))
+    }
+  }
+
   return (
     <>
       {errorMessage && <p className="form-error">{errorMessage}</p>}
@@ -108,7 +118,15 @@ export function AdminReportPage() {
                 disabled={report.status === 'PROCESSED'}
                 onClick={() => handleProcess(report)}
               >
-                {report.status === 'PROCESSED' ? '처리 완료' : '처리'}
+                {report.status === 'PROCESSED' ? '처리 완료' : '신고 처리'}
+              </button>
+              <button
+                className="button secondary"
+                type="button"
+                disabled={report.status === 'PROCESSED'}
+                onClick={() => handleCancel(report)}
+              >
+                신고 취소
               </button>
             </div>
           </article>
