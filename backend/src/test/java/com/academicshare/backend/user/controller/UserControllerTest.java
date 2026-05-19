@@ -27,6 +27,7 @@ import com.academicshare.backend.user.domain.UserStatus;
 import com.academicshare.backend.user.repository.UserRepository;
 import com.academicshare.backend.user.service.UserService;
 import jakarta.persistence.EntityManager;
+import jakarta.servlet.http.Cookie;
 import java.time.LocalDateTime;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +39,7 @@ import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 @SpringBootTest
@@ -83,7 +85,7 @@ class UserControllerTest {
     void getMeReturnsCurrentUserAndRequiresAuthentication() throws Exception {
         User user = saveUser("user-get-me", "Get Me", "user-get-me@example.com", "password123");
 
-        mockMvc.perform(get("/users/me")
+        MvcResult result = mockMvc.perform(get("/users/me")
                         .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, user.getId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(user.getId()))
@@ -93,7 +95,13 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.deleted_at").value(nullValue()))
                 .andExpect(jsonPath("$.status").value(UserStatus.ACTIVE.name()))
                 .andExpect(jsonPath("$.role").value("USER"))
-                .andExpect(jsonPath("$.password").doesNotExist());
+                .andExpect(jsonPath("$.password").doesNotExist())
+                .andReturn();
+
+        Cookie csrfCookie = result.getResponse().getCookie("XSRF-TOKEN");
+        assertThat(csrfCookie).isNotNull();
+        assertThat(csrfCookie.isHttpOnly()).isFalse();
+        assertThat(csrfCookie.getPath()).isEqualTo("/");
 
         mockMvc.perform(get("/users/me"))
                 .andExpect(status().isUnauthorized())

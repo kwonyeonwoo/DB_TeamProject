@@ -11,6 +11,7 @@ import com.academicshare.backend.auth.session.AuthSessionAttributes;
 import com.academicshare.backend.common.error.ErrorCode;
 import com.academicshare.backend.user.domain.User;
 import com.academicshare.backend.user.repository.UserRepository;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpSession;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -148,6 +149,11 @@ class AuthControllerTest {
         HttpSession session = result.getRequest().getSession(false);
         assertThat(session).isNotNull();
         assertThat(session.getAttribute(AuthSessionAttributes.CURRENT_USER_ID)).isEqualTo(user.getId());
+
+        Cookie csrfCookie = result.getResponse().getCookie("XSRF-TOKEN");
+        assertThat(csrfCookie).isNotNull();
+        assertThat(csrfCookie.isHttpOnly()).isFalse();
+        assertThat(csrfCookie.getPath()).isEqualTo("/");
     }
 
     @Test
