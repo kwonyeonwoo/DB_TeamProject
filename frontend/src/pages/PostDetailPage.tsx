@@ -39,6 +39,7 @@ export function PostDetailPage() {
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null)
   const [reportReason, setReportReason] = useState(1)
   const canReport = user?.role === 'USER'
+  const currentUserId = user?.id
 
   const loadComments = useCallback(async () => {
     if (isInvalidPostId) {
@@ -328,17 +329,21 @@ export function PostDetailPage() {
                   신고
                 </button>
               )}
-              <Link className="button secondary" to={`/posts/${post.id}/edit`}>
-                수정
-              </Link>
-              <button
-                className="button danger"
-                type="button"
-                onClick={handleDelete}
-                disabled={isMutating}
-              >
-                삭제
-              </button>
+              {currentUserId === post.user_id && (
+                <>
+                  <Link className="button secondary" to={`/posts/${post.id}/edit`}>
+                    수정
+                  </Link>
+                  <button
+                    className="button danger"
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={isMutating}
+                  >
+                    삭제
+                  </button>
+                </>
+              )}
               <Link className="button secondary" to="/posts">
                 목록으로
               </Link>
@@ -384,6 +389,7 @@ export function PostDetailPage() {
                 const replies = comments.filter(
                   (reply) => reply.parent_comment === comment.id,
                 )
+                const canEditComment = currentUserId === comment.user_id
 
                 return (
                   <article className="comment-item" id={`comment-${comment.id}`} key={comment.id}>
@@ -436,20 +442,24 @@ export function PostDetailPage() {
                           >
                             답글
                           </button>
-                          <button
-                            className="text-button"
-                            type="button"
-                            onClick={() => startEdit(comment)}
-                          >
-                            수정
-                          </button>
-                          <button
-                            className="text-button"
-                            type="button"
-                            onClick={() => handleDeleteComment(comment.id)}
-                          >
-                            삭제
-                          </button>
+                          {canEditComment && (
+                            <>
+                              <button
+                                className="text-button"
+                                type="button"
+                                onClick={() => startEdit(comment)}
+                              >
+                                수정
+                              </button>
+                              <button
+                                className="text-button"
+                                type="button"
+                                onClick={() => handleDeleteComment(comment.id)}
+                              >
+                                삭제
+                              </button>
+                            </>
+                          )}
                           {canReport && (
                             <button
                               className="text-button"
@@ -506,87 +516,95 @@ export function PostDetailPage() {
                       </form>
                     )}
 
-                    {replies.map((reply) => (
-                      <article
-                        className="comment-item reply"
-                        id={`comment-${reply.id}`}
-                        key={reply.id}
-                      >
-                        {editingCommentId === reply.id ? (
-                          <form onSubmit={(event) => handleUpdateComment(event, reply.id)}>
-                            <label className="field">
-                              답글 수정
-                              <textarea
-                                value={editContent}
-                                onChange={(event) => setEditContent(event.target.value)}
-                                required
-                              />
-                            </label>
-                            <div className="comment-actions">
-                              <label className="check-field">
-                                <input
-                                  type="checkbox"
-                                  checked={editAnonymous}
-                                  onChange={(event) =>
-                                    setEditAnonymous(event.target.checked)
-                                  }
+                    {replies.map((reply) => {
+                      const canEditReply = currentUserId === reply.user_id
+
+                      return (
+                        <article
+                          className="comment-item reply"
+                          id={`comment-${reply.id}`}
+                          key={reply.id}
+                        >
+                          {editingCommentId === reply.id ? (
+                            <form onSubmit={(event) => handleUpdateComment(event, reply.id)}>
+                              <label className="field">
+                                답글 수정
+                                <textarea
+                                  value={editContent}
+                                  onChange={(event) => setEditContent(event.target.value)}
+                                  required
                                 />
-                                익명
                               </label>
-                              <button className="button" type="submit">
-                                저장
-                              </button>
-                              <button
-                                className="button secondary"
-                                type="button"
-                                onClick={() => setEditingCommentId(null)}
-                              >
-                                취소
-                              </button>
-                            </div>
-                          </form>
-                        ) : (
-                          <>
-                            <div className="comment-header">
-                              <strong>{reply.author_display_name}</strong>
-                              <span>{new Date(reply.created_at).toLocaleString()}</span>
-                            </div>
-                            <p>{reply.content}</p>
-                            <div className="comment-actions">
-                              <button
-                                className="text-button"
-                                type="button"
-                                onClick={() => startEdit(reply)}
-                              >
-                                수정
-                              </button>
-                              <button
-                                className="text-button"
-                                type="button"
-                                onClick={() => handleDeleteComment(reply.id)}
-                              >
-                                삭제
-                              </button>
-                              {canReport && (
-                                <button
-                                  className="text-button"
-                                  type="button"
-                                  onClick={() =>
-                                    openReportModal({
-                                      target_type: 'COMMENT',
-                                      target_id: reply.id,
-                                      label: reply.content,
-                                    })
-                                  }
-                                >
-                                  신고
+                              <div className="comment-actions">
+                                <label className="check-field">
+                                  <input
+                                    type="checkbox"
+                                    checked={editAnonymous}
+                                    onChange={(event) =>
+                                      setEditAnonymous(event.target.checked)
+                                    }
+                                  />
+                                  익명
+                                </label>
+                                <button className="button" type="submit">
+                                  저장
                                 </button>
-                              )}
-                            </div>
-                          </>
-                        )}
-                      </article>
-                    ))}
+                                <button
+                                  className="button secondary"
+                                  type="button"
+                                  onClick={() => setEditingCommentId(null)}
+                                >
+                                  취소
+                                </button>
+                              </div>
+                            </form>
+                          ) : (
+                            <>
+                              <div className="comment-header">
+                                <strong>{reply.author_display_name}</strong>
+                                <span>{new Date(reply.created_at).toLocaleString()}</span>
+                              </div>
+                              <p>{reply.content}</p>
+                              <div className="comment-actions">
+                                {canEditReply && (
+                                  <>
+                                    <button
+                                      className="text-button"
+                                      type="button"
+                                      onClick={() => startEdit(reply)}
+                                    >
+                                      수정
+                                    </button>
+                                    <button
+                                      className="text-button"
+                                      type="button"
+                                      onClick={() => handleDeleteComment(reply.id)}
+                                    >
+                                      삭제
+                                    </button>
+                                  </>
+                                )}
+                                {canReport && (
+                                  <button
+                                    className="text-button"
+                                    type="button"
+                                    onClick={() =>
+                                      openReportModal({
+                                        target_type: 'COMMENT',
+                                        target_id: reply.id,
+                                        label: reply.content,
+                                      })
+                                    }
+                                  >
+                                    신고
+                                  </button>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </article>
+                      )
+                    })}
                   </article>
                 )
               })}

@@ -1402,9 +1402,9 @@
   background: var(--accent);
 }
 
-.legend-dot.exam,
-.calendar-event.exam {
-  background: #ef4444;
+.legend-dot.lecture,
+.calendar-event.lecture {
+  background: var(--brand);
 }
 
 .legend-dot.assignment,
@@ -1412,18 +1412,18 @@
   background: #0ea5e9;
 }
 
+.legend-dot.exam,
+.calendar-event.exam {
+  background: #ef4444;
+}
+
 .legend-dot.study,
 .calendar-event.study {
   background: #22c55e;
 }
 
-.legend-dot.team,
-.calendar-event.team {
-  background: #f59e0b;
-}
-
-.legend-dot.personal,
-.calendar-event.personal {
+.legend-dot.etc,
+.calendar-event.etc {
   background: var(--accent);
 }
 
