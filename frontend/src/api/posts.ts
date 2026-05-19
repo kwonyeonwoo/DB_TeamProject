@@ -3,6 +3,9 @@ import { apiClient, useMockApi } from './client'
 export interface PostFile {
   id: number
   file_url: string
+  file_name?: string
+  content_type?: string
+  preview_url?: string
 }
 
 export interface Post {
@@ -183,12 +186,27 @@ function filterPosts(posts: Post[], params: ListPostsParams) {
   return sortByLatest(nextPosts)
 }
 
-function createMockFiles(files?: File[]) {
-  return (
-    files?.map((file, index) => ({
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+
+    reader.addEventListener('load', () => resolve(String(reader.result)))
+    reader.addEventListener('error', () => reject(reader.error))
+    reader.readAsDataURL(file)
+  })
+}
+
+async function createMockFiles(files?: File[]) {
+  return Promise.all(
+    files?.map(async (file, index) => ({
       id: Date.now() + index,
       file_url: `/uploads/posts/mock/${file.name}`,
-    })) ?? []
+      file_name: file.name,
+      content_type: file.type,
+      preview_url: file.type.startsWith('image/')
+        ? await readFileAsDataUrl(file)
+        : undefined,
+    })) ?? [],
   )
 }
 
@@ -251,7 +269,7 @@ export const postsApi = {
         main_category: request.main_category,
         sub_category: request.sub_category,
         is_anonymous: request.is_anonymous,
-        files: createMockFiles(request.files),
+        files: await createMockFiles(request.files),
         liked_by_me: false,
         like_count: 0,
       }
@@ -285,7 +303,7 @@ export const postsApi = {
         main_category: request.main_category,
         sub_category: request.sub_category,
         is_anonymous: request.is_anonymous,
-        files: request.files?.length ? createMockFiles(request.files) : post.files,
+        files: request.files?.length ? await createMockFiles(request.files) : post.files,
         updated_at: new Date().toISOString(),
       }
 

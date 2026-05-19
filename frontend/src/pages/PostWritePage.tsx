@@ -1,24 +1,80 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getErrorMessage } from '../api/errors'
 import { postsApi } from '../api/posts'
 import type { Post } from '../api/posts'
 
+const categoryOptions = [
+  {
+    department: '컴퓨터공학과',
+    subjects: ['자료구조', '운영체제', '데이터베이스', '컴퓨터네트워크', '알고리즘'],
+  },
+  {
+    department: '소프트웨어학과',
+    subjects: ['웹프로그래밍', '소프트웨어공학', '객체지향프로그래밍', '모바일프로그래밍'],
+  },
+  {
+    department: '정보통신공학과',
+    subjects: ['정보통신개론', '디지털통신', '네트워크보안', '신호및시스템'],
+  },
+  {
+    department: '인공지능학과',
+    subjects: ['인공지능개론', '머신러닝', '딥러닝', '자연어처리'],
+  },
+]
+
+function getSubjectOptions(department: string) {
+  return (
+    categoryOptions.find((option) => option.department === department)?.subjects ?? []
+  )
+}
+
+const allSubjectOptions = Array.from(
+  new Set(categoryOptions.flatMap((option) => option.subjects)),
+)
+
+function isImageFile(file: File) {
+  return file.type.startsWith('image/')
+}
+
+function isImageFileUrl(fileUrl: string) {
+  return /\.(apng|avif|gif|jpe?g|png|svg|webp)$/i.test(fileUrl.split('?')[0] ?? '')
+}
+
 export function PostWritePage() {
   const navigate = useNavigate()
   const { postId } = useParams()
   const numericPostId = Number(postId)
   const isEditMode = Boolean(postId)
+  const contentTextareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [editingPost, setEditingPost] = useState<Post | null>(null)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
-  const [mainCategory, setMainCategory] = useState('')
-  const [subCategory, setSubCategory] = useState('')
+  const [mainCategory, setMainCategory] = useState(categoryOptions[0].department)
+  const [subCategory, setSubCategory] = useState(categoryOptions[0].subjects[0])
   const [isAnonymous, setIsAnonymous] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const mainCategoryOptions = useMemo(
+    () => categoryOptions.map((option) => option.department),
+    [],
+  )
+  const subCategoryOptions = getSubjectOptions(mainCategory)
+  const fallbackSubCategoryOptions = subCategoryOptions.length
+    ? subCategoryOptions
+    : allSubjectOptions
+  const selectedImageFiles = files.filter(isImageFile)
+  const existingImageFiles =
+    editingPost?.files
+      .map((file, index) => ({ file, index }))
+      .filter(
+        ({ file }) =>
+          file.content_type?.startsWith('image/') ||
+          isImageFileUrl(file.file_name ?? file.file_url),
+      ) ?? []
 
   useEffect(() => {
     let isMounted = true
@@ -83,6 +139,37 @@ export function PostWritePage() {
     }
   }
 
+  const insertImageMarker = (marker: string) => {
+    const token = `[이미지:${marker}]`
+    const textarea = contentTextareaRef.current
+
+    if (!textarea) {
+      setContent((previousContent) =>
+        previousContent ? `${previousContent}\n${token}` : token,
+      )
+      return
+    }
+
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const before = content.slice(0, start)
+    const after = content.slice(end)
+    const needsLeadingLine = before.length > 0 && !before.endsWith('\n')
+    const needsTrailingLine = after.length > 0 && !after.startsWith('\n')
+    const nextContent = `${before}${needsLeadingLine ? '\n' : ''}${token}${
+      needsTrailingLine ? '\n' : ''
+    }${after}`
+    const nextCursorPosition =
+      before.length + (needsLeadingLine ? 1 : 0) + token.length
+
+    setContent(nextContent)
+
+    window.requestAnimationFrame(() => {
+      textarea.focus()
+      textarea.setSelectionRange(nextCursorPosition, nextCursorPosition)
+    })
+  }
+
   return (
     <>
       {errorMessage && <p className="form-error">{errorMessage}</p>}
@@ -105,23 +192,35 @@ export function PostWritePage() {
             대주제 (학과)
             <input
               type="text"
+              list="main-category-options"
               value={mainCategory}
               name="main_category"
-              placeholder="예: 컴퓨터공학과"
+              placeholder="학과를 입력하세요"
               onChange={(event) => setMainCategory(event.target.value)}
               required
             />
+            <datalist id="main-category-options">
+              {mainCategoryOptions.map((option) => (
+                <option key={option} value={option} />
+              ))}
+            </datalist>
           </label>
           <label className="field">
             소주제 (과목)
             <input
               type="text"
+              list="sub-category-options"
               name="sub_category"
-              placeholder="예: 데이터베이스"
               value={subCategory}
+              placeholder="과목을 입력하세요"
               onChange={(event) => setSubCategory(event.target.value)}
               required
             />
+            <datalist id="sub-category-options">
+              {fallbackSubCategoryOptions.map((option) => (
+                <option key={option} value={option} />
+              ))}
+            </datalist>
           </label>
           <label className="field">
             제목
@@ -137,12 +236,44 @@ export function PostWritePage() {
           <label className="field">
             내용
             <textarea
+              ref={contentTextareaRef}
               name="content"
               placeholder="공유할 내용을 입력하세요"
               value={content}
               onChange={(event) => setContent(event.target.value)}
             />
           </label>
+          {(selectedImageFiles.length > 0 || existingImageFiles.length > 0) && (
+            <div className="image-placement-panel">
+              <strong>본문 이미지 위치</strong>
+              <p>커서를 원하는 위치에 둔 뒤 이미지를 선택하면 게시글 본문에 표시됩니다.</p>
+              <div className="image-placement-list">
+                {selectedImageFiles.map((file) => {
+                  const fileIndex = files.indexOf(file) + 1
+                  return (
+                    <button
+                      className="text-button"
+                      type="button"
+                      key={`${file.name}-${file.lastModified}`}
+                      onClick={() => insertImageMarker(String(fileIndex))}
+                    >
+                      {file.name}
+                    </button>
+                  )
+                })}
+                {existingImageFiles.map(({ file, index }) => (
+                  <button
+                    className="text-button"
+                    type="button"
+                    key={`${file.file_url}-${index}`}
+                    onClick={() => insertImageMarker(String(index + 1))}
+                  >
+                    {file.file_name ?? file.file_url.split('/').at(-1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <label className="field">
             첨부 파일
             <input
@@ -156,7 +287,7 @@ export function PostWritePage() {
               <strong>기존 파일</strong>
               <ul>
                 {editingPost.files.map((file) => (
-                  <li key={file.id}>{file.file_url.split('/').at(-1)}</li>
+                  <li key={file.file_url}>{file.file_name ?? file.file_url.split('/').at(-1)}</li>
                 ))}
               </ul>
             </div>
