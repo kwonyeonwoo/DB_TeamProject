@@ -129,6 +129,44 @@ class UserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "name": "Name Only Change",
+                                  "email_address": "user-update-after@example.com"
+                                }
+                                """)
+                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, user.getId())
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Name Only Change"))
+                .andExpect(jsonPath("$.email_address").value("user-update-after@example.com"));
+
+        profileUpdated = userRepository.findById(user.getId()).orElseThrow();
+        assertThat(profileUpdated.getName()).isEqualTo("Name Only Change");
+        assertThat(profileUpdated.getEmailAddress()).isEqualTo("user-update-after@example.com");
+
+        mockMvc.perform(patch("/users/me")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Name Only Change",
+                                  "email_address": "email-only-change@example.com"
+                                }
+                                """)
+                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, user.getId())
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Name Only Change"))
+                .andExpect(jsonPath("$.email_address").value("email-only-change@example.com"));
+
+        profileUpdated = userRepository.findById(user.getId()).orElseThrow();
+        assertThat(profileUpdated.getName()).isEqualTo("Name Only Change");
+        assertThat(profileUpdated.getEmailAddress()).isEqualTo("email-only-change@example.com");
+
+        mockMvc.perform(patch("/users/me")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Name Only Change",
+                                  "email_address": "email-only-change@example.com",
                                   "current_password": "password123",
                                   "new_password": "new-password123"
                                 }

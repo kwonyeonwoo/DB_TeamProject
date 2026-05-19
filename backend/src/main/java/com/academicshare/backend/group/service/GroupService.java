@@ -14,8 +14,12 @@ import com.academicshare.backend.group.dto.GroupMemberResponse;
 import com.academicshare.backend.group.dto.GroupResponse;
 import com.academicshare.backend.group.repository.GroupMemberRepository;
 import com.academicshare.backend.group.repository.GroupRepository;
+import com.academicshare.backend.user.domain.User;
+import com.academicshare.backend.user.repository.UserRepository;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,15 +34,18 @@ public class GroupService {
 
     private final GroupRepository groupRepository;
     private final GroupMemberRepository groupMemberRepository;
+    private final UserRepository userRepository;
     private final CurrentUserProvider currentUserProvider;
 
     public GroupService(
             GroupRepository groupRepository,
             GroupMemberRepository groupMemberRepository,
+            UserRepository userRepository,
             CurrentUserProvider currentUserProvider
     ) {
         this.groupRepository = groupRepository;
         this.groupMemberRepository = groupMemberRepository;
+        this.userRepository = userRepository;
         this.currentUserProvider = currentUserProvider;
     }
 
@@ -54,7 +61,8 @@ public class GroupService {
     public GroupCreateResponse createGroup(GroupCreateRequest request) {
         validateName(request.name());
 
-        Integer currentUserId = currentUserProvider.getCurrentUserId();
+        User currentUser = getCurrentUser();
+        Integer currentUserId = currentUser.getId();
         Group group = groupRepository.saveAndFlush(new Group(
                 generateGroupCode(),
                 request.name(),
@@ -66,13 +74,14 @@ public class GroupService {
                 GroupMemberRole.LEADER
         ));
 
-        return GroupCreateResponse.from(group, membership);
+        return GroupCreateResponse.from(group, membership, currentUser.getName());
     }
 
     @Transactional
     public GroupMemberResponse joinGroup(GroupJoinRequest request) {
         Group group = findGroupByCode(request.groupCode());
-        Integer currentUserId = currentUserProvider.getCurrentUserId();
+        User currentUser = getCurrentUser();
+        Integer currentUserId = currentUser.getId();
 
         if (groupMemberRepository.existsByGroupIdAndUserId(group.getId(), currentUserId)) {
             throw new ApiException(ErrorCode.CONFLICT);
@@ -84,7 +93,7 @@ public class GroupService {
                     currentUserId,
                     GroupMemberRole.MEMBER
             ));
-            return GroupMemberResponse.from(membership);
+            return GroupMemberResponse.from(membership, currentUser.getName());
         } catch (DataIntegrityViolationException exception) {
             throw new ApiException(ErrorCode.CONFLICT);
         }
@@ -99,10 +108,27 @@ public class GroupService {
             throw new ApiException(ErrorCode.ACCESS_DENIED);
         }
 
+        List<GroupMember> members = groupMemberRepository.findByGroupIdOrderByJoinedAtAscUserIdAsc(groupId);
         return GroupDetailResponse.from(
                 group,
-                groupMemberRepository.findByGroupIdOrderByJoinedAtAscUserIdAsc(groupId)
+                members,
+                findUserNamesById(members)
         );
+    }
+
+    private User getCurrentUser() {
+        return userRepository.findById(currentUserProvider.getCurrentUserId())
+                .orElseThrow(() -> new ApiException(ErrorCode.AUTHENTICATION_REQUIRED));
+    }
+
+    private Map<Integer, String> findUserNamesById(List<GroupMember> members) {
+        List<Integer> userIds = members.stream()
+                .map(GroupMember::getUserId)
+                .toList();
+
+        return userRepository.findAllById(userIds)
+                .stream()
+                .collect(Collectors.toMap(User::getId, User::getName));
     }
 
     private Group findGroupByCode(String groupCode) {

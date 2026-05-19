@@ -85,6 +85,7 @@ class GroupControllerTest {
                 .andExpect(jsonPath("$.group.created_at").isNotEmpty())
                 .andExpect(jsonPath("$.membership.group_id").isNumber())
                 .andExpect(jsonPath("$.membership.user_id").value(currentUser.getId()))
+                .andExpect(jsonPath("$.membership.user_name").value("Group Create Current"))
                 .andExpect(jsonPath("$.membership.role").value(GroupMemberRole.LEADER.name()))
                 .andExpect(jsonPath("$.membership.joined_at").isNotEmpty());
 
@@ -140,6 +141,7 @@ class GroupControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.group_id").value(group.getId()))
                 .andExpect(jsonPath("$.user_id").value(currentUser.getId()))
+                .andExpect(jsonPath("$.user_name").value("Group Join Current"))
                 .andExpect(jsonPath("$.role").value(GroupMemberRole.MEMBER.name()))
                 .andExpect(jsonPath("$.joined_at").isNotEmpty());
 
@@ -170,6 +172,8 @@ class GroupControllerTest {
         Group group = saveGroup(leader, "detail-code", "Detail Group");
         saveMembership(group, leader, GroupMemberRole.LEADER);
         saveMembership(group, member, GroupMemberRole.MEMBER);
+        member.changeName("Group Detail Member Updated");
+        userRepository.saveAndFlush(member);
 
         mockMvc.perform(get("/groups/{groupId}", group.getId())
                         .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, member.getId()))
@@ -179,8 +183,10 @@ class GroupControllerTest {
                 .andExpect(jsonPath("$.group.name").value("Detail Group"))
                 .andExpect(jsonPath("$.members.length()").value(2))
                 .andExpect(jsonPath("$.members[0].user_id").value(leader.getId()))
+                .andExpect(jsonPath("$.members[0].user_name").value("Group Detail Leader"))
                 .andExpect(jsonPath("$.members[0].role").value(GroupMemberRole.LEADER.name()))
                 .andExpect(jsonPath("$.members[1].user_id").value(member.getId()))
+                .andExpect(jsonPath("$.members[1].user_name").value("Group Detail Member Updated"))
                 .andExpect(jsonPath("$.members[1].role").value(GroupMemberRole.MEMBER.name()));
 
         mockMvc.perform(get("/groups/{groupId}", group.getId())
