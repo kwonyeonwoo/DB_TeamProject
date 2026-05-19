@@ -64,10 +64,10 @@ public class UserService {
         User user = getCurrentUser();
         validateUpdateRequest(user, request);
 
-        if (request.nameProvided()) {
+        if (request.nameProvided() && isNameChanged(user, request.name())) {
             user.changeName(request.name());
         }
-        if (request.emailAddressProvided()) {
+        if (request.emailAddressProvided() && isEmailAddressChanged(user, request.emailAddress())) {
             user.changeEmailAddress(request.emailAddress());
         }
         if (request.newPasswordProvided()) {
@@ -139,7 +139,7 @@ public class UserService {
         }
 
         if (request.nameProvided()) {
-            validateName(user, request.name());
+            validateName(request.name());
         }
         if (request.emailAddressProvided()) {
             validateEmailAddress(user, request.emailAddress());
@@ -147,13 +147,13 @@ public class UserService {
         if (request.newPasswordProvided()) {
             validatePasswordChange(user, request);
         }
-    }
-
-    private void validateName(User user, String name) {
-        if (!StringUtils.hasText(name) || name.length() > MAX_NAME_LENGTH) {
+        if (!hasEffectiveUpdate(user, request)) {
             throw new ApiException(ErrorCode.VALIDATION_ERROR);
         }
-        if (Objects.equals(user.getName(), name)) {
+    }
+
+    private void validateName(String name) {
+        if (!StringUtils.hasText(name) || name.length() > MAX_NAME_LENGTH) {
             throw new ApiException(ErrorCode.VALIDATION_ERROR);
         }
     }
@@ -164,12 +164,24 @@ public class UserService {
                 || !EMAIL_PATTERN.matcher(emailAddress).matches()) {
             throw new ApiException(ErrorCode.VALIDATION_ERROR);
         }
-        if (Objects.equals(user.getEmailAddress(), emailAddress)) {
-            throw new ApiException(ErrorCode.VALIDATION_ERROR);
-        }
-        if (userRepository.existsByEmailAddressAndIdNot(emailAddress, user.getId())) {
+        if (isEmailAddressChanged(user, emailAddress)
+                && userRepository.existsByEmailAddressAndIdNot(emailAddress, user.getId())) {
             throw new ApiException(ErrorCode.CONFLICT);
         }
+    }
+
+    private boolean hasEffectiveUpdate(User user, UserUpdateRequest request) {
+        return (request.nameProvided() && isNameChanged(user, request.name()))
+                || (request.emailAddressProvided() && isEmailAddressChanged(user, request.emailAddress()))
+                || request.newPasswordProvided();
+    }
+
+    private boolean isNameChanged(User user, String name) {
+        return !Objects.equals(user.getName(), name);
+    }
+
+    private boolean isEmailAddressChanged(User user, String emailAddress) {
+        return !Objects.equals(user.getEmailAddress(), emailAddress);
     }
 
     private void validatePasswordChange(User user, UserUpdateRequest request) {

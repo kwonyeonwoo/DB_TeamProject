@@ -9,9 +9,13 @@ public record GroupCreateResponse(
 ) {
 
     public static GroupCreateResponse from(Group group, GroupMember membership) {
+        return from(group, membership, null);
+    }
+
+    public static GroupCreateResponse from(Group group, GroupMember membership, String userName) {
         return new GroupCreateResponse(
                 GroupResponse.from(group),
-                GroupMemberResponse.from(membership)
+                GroupMemberResponse.from(membership, userName)
         );
     }
 }
