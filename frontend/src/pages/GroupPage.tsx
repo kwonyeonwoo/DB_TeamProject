@@ -85,6 +85,23 @@ export function GroupPage() {
   }, [])
 
   useEffect(() => {
+    const handleProfileUpdated = () => {
+      if (!selectedGroupId) {
+        return
+      }
+
+      void loadGroupDetail(selectedGroupId)
+        .then(() => setErrorMessage(null))
+        .catch((error: unknown) => setErrorMessage(getErrorMessage(error)))
+    }
+
+    window.addEventListener('profile-updated', handleProfileUpdated)
+    return () => {
+      window.removeEventListener('profile-updated', handleProfileUpdated)
+    }
+  }, [loadGroupDetail, selectedGroupId])
+
+  useEffect(() => {
     let isMounted = true
 
     if (!selectedGroupId) {

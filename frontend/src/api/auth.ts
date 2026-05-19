@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { apiClient, useMockApi } from './client'
+import { syncMockGroupMemberName } from './groups'
 
 export type UserRole = 'USER' | 'ADMIN'
 
@@ -256,6 +257,7 @@ export const authApi = {
         email_address: request.email_address ?? user.email_address,
       }
       writeMockUser(nextUser)
+      syncMockGroupMemberName(nextUser.id, nextUser.name)
       return nextUser
     }
 
