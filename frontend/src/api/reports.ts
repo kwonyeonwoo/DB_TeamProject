@@ -59,8 +59,8 @@ const seedReports: Report[] = [
 
 export const reportReasonLabels: Record<number, string> = {
   1: '부적절한 내용',
-  2: '욕설 또는 비방',
-  3: '스팸 또는 광고',
+  2: '광고/도배',
+  3: '저작권 침해',
   4: '기타',
 }
 

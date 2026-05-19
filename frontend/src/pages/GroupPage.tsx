@@ -5,14 +5,7 @@ import { getErrorMessage } from '../api/errors'
 import { groupsApi } from '../api/groups'
 import type { Group, GroupDetailResponse } from '../api/groups'
 import type { Schedule, SaveScheduleRequest } from '../api/schedules'
-
-const scheduleTypes = [
-  { value: 1, label: '과제' },
-  { value: 2, label: '시험' },
-  { value: 3, label: '스터디' },
-  { value: 4, label: '회의' },
-  { value: 5, label: '기타' },
-]
+import { getScheduleTypeLabel, scheduleTypes } from '../constants/scheduleTypes'
 
 function createEmptyScheduleForm(): SaveScheduleRequest {
   return {
@@ -33,7 +26,7 @@ function toIsoLikeLocal(value: string) {
 }
 
 function getTypeLabel(type: number) {
-  return scheduleTypes.find((item) => item.value === type)?.label ?? '기타'
+  return getScheduleTypeLabel(type)
 }
 
 export function GroupPage() {

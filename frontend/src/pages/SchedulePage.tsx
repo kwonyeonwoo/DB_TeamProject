@@ -7,16 +7,9 @@ import type { Group } from '../api/groups'
 import { schedulesApi } from '../api/schedules'
 import type { Schedule, SaveScheduleRequest } from '../api/schedules'
 import { UserSummaryCard } from '../components/UserSummaryCard'
+import { getScheduleType, scheduleTypes } from '../constants/scheduleTypes'
 
 type ScheduleScope = 'personal' | 'group'
-
-const scheduleTypes = [
-  { value: 1, label: '과제', className: 'assignment' },
-  { value: 2, label: '시험', className: 'exam' },
-  { value: 3, label: '학습', className: 'study' },
-  { value: 4, label: '팀플', className: 'team' },
-  { value: 5, label: '개인 일정', className: 'personal' },
-]
 
 const weekdays = ['일', '월', '화', '수', '목', '금', '토']
 
@@ -54,10 +47,6 @@ function formatTime(value: string) {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-function getType(type: number) {
-  return scheduleTypes.find((item) => item.value === type) ?? scheduleTypes[4]
 }
 
 function createEmptyForm(dateKey = getDateKey(new Date())): SaveScheduleRequest {
@@ -556,7 +545,7 @@ export function SchedulePage() {
                     <span className="calendar-date-number">{date.getDate()}</span>
                     <span className="calendar-event-list">
                       {daySchedules.slice(0, 3).map((schedule) => {
-                        const type = getType(schedule.type)
+                        const type = getScheduleType(schedule.type)
 
                         return (
                           <span
@@ -633,7 +622,7 @@ export function SchedulePage() {
                 ) : (
                   <ul>
                     {selectedSchedules.map((schedule) => {
-                      const type = getType(schedule.type)
+                      const type = getScheduleType(schedule.type)
 
                       return (
                         <li key={schedule.id}>
