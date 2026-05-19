@@ -17,7 +17,23 @@ interface ReportTarget {
 }
 
 function getAttachmentUrl(file: PostFile) {
-  return file.preview_url ?? file.file_url
+  if (file.preview_url) {
+    return file.preview_url
+  }
+
+  if (/^(https?:|data:|blob:)/i.test(file.file_url)) {
+    return file.file_url
+  }
+
+  if (file.file_url.startsWith('/api/uploads/')) {
+    return file.file_url
+  }
+
+  if (file.file_url.startsWith('/uploads/')) {
+    return `/api${file.file_url}`
+  }
+
+  return file.file_url
 }
 
 function getAttachmentName(file: PostFile) {
