@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { getErrorMessage } from '../api/errors'
 import { notificationsApi } from '../api/notifications'
 import type { Notification } from '../api/notifications'
+import notificationBell from '../assets/notification-bell.png'
 
 export function NotificationPopup() {
   const [isOpen, setIsOpen] = useState(false)
@@ -35,8 +36,14 @@ export function NotificationPopup() {
 
   return (
     <div className="notification-wrap">
-      <button className="text-button" type="button" onClick={handleToggle}>
-        알림{unreadCount > 0 ? ` ${unreadCount}` : ''}
+      <button
+        className="notification-icon-button"
+        type="button"
+        aria-label={unreadCount > 0 ? `알림 ${unreadCount}개` : '알림'}
+        onClick={handleToggle}
+      >
+        <img src={notificationBell} alt="" aria-hidden="true" />
+        {unreadCount > 0 && <span className="notification-count">{unreadCount}</span>}
       </button>
       {isOpen && (
         <section className="notification-popover" aria-label="알림 목록">

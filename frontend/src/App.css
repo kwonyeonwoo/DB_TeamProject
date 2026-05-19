@@ -55,6 +55,62 @@
   position: relative;
 }
 
+.notification-icon-button {
+  position: relative;
+  display: inline-grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid rgba(17, 88, 111, 0.14);
+  border-radius: 12px;
+  padding: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(245, 251, 253, 0.78)),
+    #fff;
+  box-shadow:
+    0 9px 18px rgba(7, 66, 86, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  transition:
+    box-shadow 0.16s ease,
+    transform 0.16s ease,
+    border-color 0.16s ease;
+}
+
+.notification-icon-button:hover {
+  border-color: rgba(17, 88, 111, 0.28);
+  box-shadow:
+    0 12px 24px rgba(7, 66, 86, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+  transform: translateY(-1px);
+}
+
+.notification-icon-button img {
+  display: block;
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgba(7, 66, 86, 0.22));
+}
+
+.notification-count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: grid;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  padding: 0 4px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .notification-popover {
   position: absolute;
   top: calc(100% + 10px);
