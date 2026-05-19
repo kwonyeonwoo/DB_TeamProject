@@ -32,6 +32,7 @@ export interface CreateGroupResponse {
 }
 
 const currentUserId = 2
+const mockUserKey = 'db-teamproject:mock-user'
 const mockGroupKey = 'db-teamproject:mock-groups'
 const mockGroupMemberKey = 'db-teamproject:mock-group-members'
 const mockGroupScheduleKey = 'db-teamproject:mock-group-schedules'
@@ -142,6 +143,30 @@ function writeMockMembers(members: GroupMember[]) {
   writeStorage(mockGroupMemberKey, members)
 }
 
+function readCurrentMockUserName() {
+  const rawUser = sessionStorage.getItem(mockUserKey)
+
+  if (!rawUser) {
+    return '테스트 사용자'
+  }
+
+  try {
+    const user = JSON.parse(rawUser) as { name?: string }
+    return user.name ?? '테스트 사용자'
+  } catch {
+    return '테스트 사용자'
+  }
+}
+
+export function syncMockGroupMemberName(userId: number, userName: string) {
+  const members = readMockMembers()
+  writeMockMembers(
+    members.map((member) =>
+      member.user_id === userId ? { ...member, user_name: userName } : member,
+    ),
+  )
+}
+
 function readMockGroupSchedules() {
   return readStorage<Schedule>(mockGroupScheduleKey, seedGroupSchedules)
 }
@@ -246,7 +271,7 @@ export const groupsApi = {
         user_id: currentUserId,
         role: 'LEADER',
         joined_at: now,
-        user_name: '테스트 사용자',
+        user_name: readCurrentMockUserName(),
       }
 
       writeMockGroups([...groups, group])
@@ -281,7 +306,7 @@ export const groupsApi = {
         user_id: currentUserId,
         role: 'MEMBER',
         joined_at: new Date().toISOString(),
-        user_name: '테스트 사용자',
+        user_name: readCurrentMockUserName(),
       }
       writeMockMembers([...members, membership])
       return membership

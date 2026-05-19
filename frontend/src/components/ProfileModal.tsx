@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import type { UpdateMeRequest } from '../api/auth'
 import { useAuth } from '../contexts/useAuth'
 
 interface ProfileModalProps {
@@ -24,19 +25,43 @@ export function ProfileModal({ onClose }: ProfileModalProps) {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setIsSubmitting(true)
+    clearError()
     setSuccessMessage(null)
 
+    if (!user) {
+      return
+    }
+
+    const nextName = name.trim()
+    const nextEmailAddress = emailAddress.trim()
+    const request: UpdateMeRequest = {}
+
+    if (nextName !== user.name) {
+      request.name = nextName
+    }
+
+    if (nextEmailAddress !== user.email_address) {
+      request.email_address = nextEmailAddress
+    }
+
+    if (newPassword) {
+      request.current_password = currentPassword
+      request.new_password = newPassword
+    }
+
+    if (Object.keys(request).length === 0) {
+      setSuccessMessage('변경된 정보가 없습니다.')
+      return
+    }
+
+    setIsSubmitting(true)
+
     try {
-      await updateMe({
-        name,
-        email_address: emailAddress,
-        current_password: currentPassword || undefined,
-        new_password: newPassword || undefined,
-      })
+      await updateMe(request)
       setCurrentPassword('')
       setNewPassword('')
       setSuccessMessage('내 정보가 수정되었습니다.')
+      window.dispatchEvent(new CustomEvent('profile-updated'))
     } catch {
       setSuccessMessage(null)
     } finally {
