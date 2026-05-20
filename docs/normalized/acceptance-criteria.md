@@ -356,8 +356,8 @@ Normal:
 - Given 인증된 회원이 대주제, 소주제, 제목, 익명 여부를 입력한다
 - When `POST /api/posts`를 multipart로 호출한다
 - Then `201`과 Post를 반환한다
-- And 업로드 파일은 `/uploads/posts/{post_id}/{UUID}` 로컬 경로에 저장된다
-- And DB에는 `file_url`만 저장된다
+- And 업로드 파일은 `/uploads/posts/{post_id}/{UUID[.extension]}` 로컬 경로에 저장된다
+- And DB에는 `file_url`, `file_name`, `content_type`이 저장된다
 
 Validation failures:
 

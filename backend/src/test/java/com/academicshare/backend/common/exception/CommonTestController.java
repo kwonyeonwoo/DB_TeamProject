@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 @RestController
 class CommonTestController {
@@ -59,6 +60,11 @@ class CommonTestController {
         };
 
         throw new ApiException(errorCode);
+    }
+
+    @GetMapping("/common-test/max-upload-size")
+    void maxUploadSize() {
+        throw new MaxUploadSizeExceededException(1024);
     }
 }
 

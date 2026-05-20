@@ -131,7 +131,7 @@ Implementation notes:
 - 필터 종류는 `keyword`, `author`, `category` 중 하나만 허용한다.
 - 상세 조회 시 조회수를 증가시킨다.
 - Post 응답 계약의 `liked_by_me`, `like_count`는 추천 등록/취소 API보다 먼저 게시글 조회에서 읽기 전용으로 제공할 수 있어야 한다.
-- 파일은 로컬 `/uploads/posts/{post_id}/{UUID}`에 저장하고 DB에는 `file_url`만 저장한다.
+- 파일은 로컬 `/uploads/posts/{post_id}/{UUID[.extension]}`에 저장하고 DB에는 `file_url`, `file_name`, `content_type`을 저장한다.
 - 첨부파일은 `/api/posts/{post_id}/files/{file_name}` 다운로드 API와 `/api/uploads/posts/{post_id}/{file_name}` 정적 리소스 경로로 제공한다.
 - 수정 시 새 파일이 있으면 기존 파일 목록을 전체 교체한다.
 - 게시글 삭제 시 추천, 댓글/대댓글, 첨부파일, 알림은 FK cascade 정책에 따라 함께 삭제한다.

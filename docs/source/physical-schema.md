@@ -182,6 +182,8 @@ CREATE TABLE schedules (
 CREATE TABLE file (
   id INTEGER NOT NULL,
   file_url VARCHAR(1024) NOT NULL,
+  file_name VARCHAR(255),
+  content_type VARCHAR(255),
 
   PRIMARY KEY(id, file_url),
   FOREIGN KEY(id) REFERENCES post(id)
@@ -382,12 +384,14 @@ CREATE INDEX idx_notification_comment_id ON notification(commented_id);
 
 ### file
 
-게시글 첨부파일을 저장한다. 논리 스키마에 따라 게시글 참조 컬럼명은 `id`를 사용한다. 실제 파일은 `/uploads/posts/{post_id}/{UUID}` 형식의 서버 로컬 경로에 저장하고 DB에는 `file_url`만 저장한다.
+게시글 첨부파일을 저장한다. 논리 스키마에 따라 게시글 참조 컬럼명은 `id`를 사용한다. 실제 파일은 `/uploads/posts/{post_id}/{UUID[.extension]}` 형식의 서버 로컬 경로에 저장하고 DB에는 `file_url`, `file_name`, `content_type`을 저장한다.
 
 | 컬럼 | 타입 | 제약 | NULL | 설명 |
 |---|---:|---|---|---|
 | `id` | INTEGER | PK, FK → `post.id` | NN | 첨부파일이 속한 게시글 |
-| `file_url` | VARCHAR(1024) | PK | NN | 업로드된 첨부파일의 저장 위치. 별도 파일 메타데이터는 저장하지 않는다. |
+| `file_url` | VARCHAR(1024) | PK | NN | 업로드된 첨부파일의 저장 위치 |
+| `file_name` | VARCHAR(255) | - | NULL | 업로드 당시 원본 파일명 |
+| `content_type` | VARCHAR(255) | - | NULL | 업로드 당시 MIME 타입 |
 
 ### notification
 

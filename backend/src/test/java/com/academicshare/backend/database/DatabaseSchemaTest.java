@@ -59,6 +59,16 @@ class DatabaseSchemaTest {
     }
 
     @Test
+    void flywayCreatesFileMetadataColumns() {
+        List<String> columns = jdbcTemplate.queryForList(
+                "SELECT LOWER(column_name) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'file'",
+                String.class
+        );
+
+        assertThat(columns).contains("file_name", "content_type");
+    }
+
+    @Test
     void repositoriesPersistUserAndPost() {
         User user = userRepository.saveAndFlush(new User(
                 "user01",

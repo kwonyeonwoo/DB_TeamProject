@@ -7,13 +7,17 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Locale;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 @Component
 public class PostFileStorage {
+
+    private static final int MAX_EXTENSION_LENGTH = 20;
 
     private final Path uploadRoot;
 
@@ -22,7 +26,7 @@ public class PostFileStorage {
     }
 
     public String store(Integer postId, MultipartFile file) {
-        String storedName = UUID.randomUUID().toString();
+        String storedName = UUID.randomUUID() + fileExtension(file);
         Path directory = postDirectory(postId);
         Path target = directory.resolve(storedName);
 
@@ -60,5 +64,29 @@ public class PostFileStorage {
 
     private Path postDirectory(Integer postId) {
         return uploadRoot.resolve("posts").resolve(postId.toString()).normalize();
+    }
+
+    private String fileExtension(MultipartFile file) {
+        String originalFilename = file.getOriginalFilename();
+        if (!StringUtils.hasText(originalFilename)) {
+            return "";
+        }
+
+        String normalizedFilename = originalFilename.replace('\\', '/');
+        String filename = StringUtils.getFilename(normalizedFilename);
+        if (!StringUtils.hasText(filename)) {
+            return "";
+        }
+
+        int dotIndex = filename.lastIndexOf('.');
+        if (dotIndex < 0 || dotIndex == filename.length() - 1) {
+            return "";
+        }
+
+        String extension = filename.substring(dotIndex).toLowerCase(Locale.ROOT);
+        if (extension.length() > MAX_EXTENSION_LENGTH || !extension.matches("\\.[a-z0-9][a-z0-9._-]*")) {
+            return "";
+        }
+        return extension;
     }
 }

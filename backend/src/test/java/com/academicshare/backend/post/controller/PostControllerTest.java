@@ -2,6 +2,7 @@ package com.academicshare.backend.post.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -234,6 +235,9 @@ class PostControllerTest {
                 .andExpect(jsonPath("$.updated_at").value(nullValue()))
                 .andExpect(jsonPath("$.files.length()").value(1))
                 .andExpect(jsonPath("$.files[0].file_url", startsWith("/uploads/posts/")))
+                .andExpect(jsonPath("$.files[0].file_url", endsWith(".txt")))
+                .andExpect(jsonPath("$.files[0].file_name").value("notes.txt"))
+                .andExpect(jsonPath("$.files[0].content_type").value(MediaType.TEXT_PLAIN_VALUE))
                 .andReturn();
 
         JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
@@ -243,6 +247,12 @@ class PostControllerTest {
         assertThat(postFileRepository.findByIdOrderByFileUrlAsc(postId))
                 .extracting(PostFile::getFileUrl)
                 .allMatch(storedFileUrl -> storedFileUrl.startsWith("/uploads/posts/" + postId + "/"));
+        assertThat(postFileRepository.findByIdOrderByFileUrlAsc(postId))
+                .extracting(PostFile::getFileName)
+                .containsExactly("notes.txt");
+        assertThat(postFileRepository.findByIdOrderByFileUrlAsc(postId))
+                .extracting(PostFile::getContentType)
+                .containsExactly(MediaType.TEXT_PLAIN_VALUE);
 
         mockMvc.perform(get(fileUrl)
                         .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId()))
@@ -280,6 +290,43 @@ class PostControllerTest {
                         .with(csrf()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(ErrorCode.VALIDATION_ERROR.name()));
+    }
+
+    @Test
+    void createPostSupportsJsonWithoutFiles() throws Exception {
+        User currentUser = saveUser("create-json", "Create Json", "create-json@example.com");
+
+        mockMvc.perform(post("/posts")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "JSON created title",
+                                  "content": "JSON created content",
+                                  "main_category": "Major",
+                                  "sub_category": "Subject",
+                                  "is_anonymous": false
+                                }
+                                """)
+                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId())
+                        .with(csrf()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.title").value("JSON created title"))
+                .andExpect(jsonPath("$.files.length()").value(0))
+                .andExpect(jsonPath("$.author_display_name").value("Create Json"));
+    }
+
+    @Test
+    void createPostWithMissingMultipartFieldsReturns400() throws Exception {
+        User currentUser = saveUser("create-malformed", "Create Malformed", "create-malformed@example.com");
+
+        mockMvc.perform(post("/posts")
+                        .contentType(MediaType.MULTIPART_FORM_DATA)
+                        .content("malformed multipart")
+                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, currentUser.getId())
+                        .with(csrf()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(ErrorCode.VALIDATION_ERROR.name()))
+                .andExpect(jsonPath("$.message").value("is_anonymous 값이 필요합니다."));
     }
 
     @Test
@@ -352,12 +399,18 @@ class PostControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.title").value("File post updated"))
                 .andExpect(jsonPath("$.files.length()").value(1))
-                .andExpect(jsonPath("$.files[0].file_url", startsWith("/uploads/posts/" + post.getId() + "/")));
+                .andExpect(jsonPath("$.files[0].file_url", startsWith("/uploads/posts/" + post.getId() + "/")))
+                .andExpect(jsonPath("$.files[0].file_url", endsWith(".txt")))
+                .andExpect(jsonPath("$.files[0].file_name").value("new.txt"))
+                .andExpect(jsonPath("$.files[0].content_type").value(MediaType.TEXT_PLAIN_VALUE));
 
         assertThat(postFileRepository.findByIdOrderByFileUrlAsc(post.getId()))
                 .extracting(PostFile::getFileUrl)
                 .doesNotContain("/uploads/posts/" + post.getId() + "/old-file")
                 .hasSize(1);
+        assertThat(postFileRepository.findByIdOrderByFileUrlAsc(post.getId()))
+                .extracting(PostFile::getFileName)
+                .containsExactly("new.txt");
     }
 
     @Test

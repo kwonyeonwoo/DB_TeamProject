@@ -64,7 +64,7 @@ Rules:
 |---|---|
 | User | `id`, `login_id`, `name`, `email_address`, `created_at`, `deleted_at`, `status`, `role` |
 | Post | `id`, `user_id`, `author_display_name`, `title`, `content`, `created_at`, `updated_at`, `view_count`, `main_category`, `sub_category`, `is_anonymous`, `files`, `liked_by_me`, `like_count` |
-| File | `id`, `file_url` |
+| File | `id`, `file_url`, `file_name`, `content_type` |
 | Comment | `id`, `user_id`, `author_display_name`, `post_id`, `parent_comment`, `content`, `is_anonymous`, `created_at`, `updated_at` |
 | Like | `id`, `user_id`, `post_id`, `created_at` |
 | Report | `id`, `reporter_id`, `target_type`, `target_id`, `target_display_name`, `reason_type`, `created_at`, `status`, `processed_by`, `processed_at` |
@@ -92,10 +92,10 @@ Rules:
 |---|---|---|---|---|---|---|---|
 | POST-001 | GET | `/api/posts` | yes | Query: `page`, `size`, `keyword`, `author`, `main_category`, `sub_category` | 200 page object with `items`, `page`, `size`, `total_count`, `total_pages` | 최신순. `page` 기본값은 1. `keyword`, `author`, 주제 필터는 한 번에 하나만 사용. 주제 필터는 `main_category`, `sub_category` 묶음. 작성자 필터에서 탈퇴/익명 작성자 제외. | 400 둘 이상의 필터 종류, 400 페이지 파라미터 오류 |
 | POST-002 | GET | `/api/posts/{post_id}` | yes | Path: `post_id` | 200 Post | 상세 접근 시 조회수 증가. | 404 게시글 없음 |
-| POST-003 | POST | `/api/posts` | yes | multipart: `title`, `content`, `main_category`, `sub_category`, `is_anonymous`, `files[]` | 201 Post | `title`, `main_category`, `sub_category`, `is_anonymous` 필수. 파일은 직접 업로드. 실제 파일은 `/uploads/posts/{post_id}/{UUID}` 저장, DB에는 `file_url`만 저장. | 400 필수 누락, 400 파일 업로드 실패 |
+| POST-003 | POST | `/api/posts` | yes | multipart: `title`, `content`, `main_category`, `sub_category`, `is_anonymous`, `files[]` | 201 Post | `title`, `main_category`, `sub_category`, `is_anonymous` 필수. 파일은 직접 업로드. 실제 파일은 `/uploads/posts/{post_id}/{UUID[.extension]}` 저장, DB에는 `file_url`, `file_name`, `content_type`을 저장. | 400 필수 누락, 400 파일 업로드 실패 |
 | POST-004 | PATCH | `/api/posts/{post_id}` | yes, author | multipart 또는 JSON: `title`, `content`, `main_category`, `sub_category`, `is_anonymous`, `files[]` | 200 Post | 작성자만 수정. 수정 성공 시 `updated_at = now()`. 새 파일이 있으면 기존 파일 목록 전체 교체, 없으면 유지. | 400 수정 필드 없음, 403 작성자 아님, 404 게시글 없음 |
 | POST-005 | DELETE | `/api/posts/{post_id}` | yes, author | Path: `post_id` | 204 없음 | 작성자만 삭제. 게시글 삭제 시 추천, 댓글/대댓글, 첨부파일, 알림은 FK cascade 정책에 따라 함께 삭제된다. 해당 게시글 또는 함께 삭제된 댓글/대댓글 대상 신고 이력은 유지한다. | 403 작성자 아님, 404 게시글 없음 |
-| POST-FILE-001 | GET | `/api/posts/{post_id}/files/{file_name}` | yes | Path: `post_id`, `file_name` | 200 binary file | `file.file_url = /uploads/posts/{post_id}/{file_name}` row가 존재해야 한다. 실제 파일은 `app.upload.root/posts/{post_id}/{file_name}`에서 조회한다. 정적 접근은 `/api/uploads/posts/{post_id}/{file_name}`로 제공한다. | 404 첨부파일 DB row 없음, 404 실제 파일 없음 |
+| POST-FILE-001 | GET | `/api/posts/{post_id}/files/{file_name}` | yes | Path: `post_id`, `file_name` | 200 binary file | `file.file_url = /uploads/posts/{post_id}/{file_name}` row가 존재해야 한다. 실제 파일은 `app.upload.root/posts/{post_id}/{file_name}`에서 조회한다. 다운로드 응답은 저장된 `content_type`과 `file_name`을 우선 사용한다. 정적 접근은 `/api/uploads/posts/{post_id}/{file_name}`로 제공한다. | 404 첨부파일 DB row 없음, 404 실제 파일 없음 |
 | POST-006 | POST | `/api/posts/{post_id}/likes` | yes | Path: `post_id` | 201 Like | 한 회원은 한 게시글에 추천 1회만 가능. | 404 게시글 없음, 409 이미 추천 |
 | POST-007 | DELETE | `/api/posts/{post_id}/likes` | yes | Path: `post_id` | 204 없음 | 추천한 게시글만 취소 가능. | 404 게시글 없음, 404 추천 없음 |
 

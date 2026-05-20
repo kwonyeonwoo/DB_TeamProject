@@ -91,6 +91,14 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void maxUploadSizeExceededReturnsSpecificValidationMessage() throws Exception {
+        mockMvc.perform(get("/common-test/max-upload-size"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(ErrorCode.VALIDATION_ERROR.name()))
+                .andExpect(jsonPath("$.message").value("업로드 파일 크기가 허용 한도를 초과했습니다."));
+    }
+
+    @Test
     void apiExceptionReturnsConfiguredStatusAndErrorBody() throws Exception {
         Map<String, ErrorCode> cases = Map.of(
                 "unauthorized", ErrorCode.AUTHENTICATION_REQUIRED,

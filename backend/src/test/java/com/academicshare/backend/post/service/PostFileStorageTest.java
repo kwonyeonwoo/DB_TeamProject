@@ -1,5 +1,6 @@
 package com.academicshare.backend.post.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.academicshare.backend.common.error.ErrorCode;
@@ -14,6 +15,22 @@ class PostFileStorageTest {
 
     @TempDir
     private Path tempDir;
+
+    @Test
+    void storeKeepsSafeOriginalExtensionInStoredUrl() {
+        PostFileStorage storage = new PostFileStorage(tempDir.toString());
+        MockMultipartFile file = new MockMultipartFile(
+                "files",
+                "diagram.PNG",
+                "image/png",
+                new byte[] {1}
+        );
+
+        String fileUrl = storage.store(1, file);
+
+        assertThat(fileUrl).startsWith("/uploads/posts/1/");
+        assertThat(fileUrl).endsWith(".png");
+    }
 
     @Test
     void storeThrowsValidationErrorWhenUploadPathCannotBeCreated() throws Exception {

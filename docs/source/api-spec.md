@@ -130,6 +130,8 @@ Rules:
 |---|---|---|
 | `id` | integer | 게시글 id |
 | `file_url` | string | 업로드된 첨부파일의 저장 위치 |
+| `file_name` | string, nullable | 업로드 당시 원본 파일명 |
+| `content_type` | string, nullable | 업로드 당시 MIME 타입 |
 
 ### 4-4. Comment
 
@@ -516,9 +518,9 @@ Response `201`: Post
 Processing:
 
 - 업로드된 실제 파일은 서버 로컬 경로에 저장한다.
-- 파일 저장 경로와 DB에 저장되는 `file_url`은 `/uploads/posts/{post_id}/{UUID}` 형식을 기본으로 한다.
-- DB에는 `file_url`만 저장하며, 파일명, 원본 파일명, 파일 크기, MIME 타입, 확장자 등 별도 파일 메타데이터는 저장하지 않는다.
-- 파일 크기와 확장자 제한 정책은 최소 구현 범위에서 별도 요구사항으로 두지 않는다.
+- 파일 저장 경로와 DB에 저장되는 `file_url`은 `/uploads/posts/{post_id}/{UUID[.extension]}` 형식을 기본으로 한다.
+- DB에는 `file_url`, `file_name`, `content_type`을 저장한다.
+- 파일 크기 제한 정책은 최소 구현 범위에서 별도 요구사항으로 두지 않는다.
 
 Client behavior:
 
@@ -557,7 +559,7 @@ Processing:
 - 수정 성공 시 `updated_at`을 현재 시각으로 기록한다.
 - 새 파일이 업로드되면 기존 첨부파일 목록을 전체 교체한다.
 - 새 파일이 업로드되지 않으면 기존 첨부파일 목록을 유지한다.
-- DB에는 업로드된 파일의 `file_url`만 저장하며 별도 파일 메타데이터는 저장하지 않는다.
+- DB에는 업로드된 파일의 `file_url`, `file_name`, `content_type`을 저장한다.
 
 Response `200`: Post
 
@@ -583,7 +585,7 @@ Path parameters:
 | 이름 | 타입 | 필수 | 설명 |
 |---|---|---|---|
 | `post_id` | integer | yes | 게시글 id |
-| `file_name` | string | yes | `/uploads/posts/{post_id}/{file_name}`의 마지막 경로 값. 현재 구현에서는 UUID 저장명 |
+| `file_name` | string | yes | `/uploads/posts/{post_id}/{file_name}`의 마지막 경로 값. 현재 구현에서는 UUID 기반 저장명이며 원본 확장자를 보존할 수 있다. |
 
 Response `200`: binary file
 
@@ -591,7 +593,7 @@ Processing:
 
 - DB의 `file.file_url`에 `/uploads/posts/{post_id}/{file_name}` 값이 존재해야 한다.
 - 실제 파일은 `app.upload.root/posts/{post_id}/{file_name}`에서 조회한다.
-- DB에는 원본 파일명, 파일 크기, MIME 타입을 저장하지 않으므로 응답 파일명은 저장된 `file_name`을 사용한다.
+- DB에 저장된 `file_name`, `content_type`이 있으면 다운로드 응답의 파일명과 Content-Type에 사용한다.
 - 게시글 상세 응답의 `files[].file_url`은 기존 계약대로 `/uploads/posts/{post_id}/{file_name}` 형식을 유지한다.
 - 브라우저 직접 접근용 정적 리소스 경로는 base path를 붙인 `/api/uploads/posts/{post_id}/{file_name}`이다.
 - `/api/uploads/**`는 서버 로컬 `app.upload.root` 아래 파일을 정적 리소스로 제공한다.

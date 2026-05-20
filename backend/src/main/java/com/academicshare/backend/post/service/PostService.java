@@ -38,6 +38,7 @@ public class PostService {
 
     private static final int MAX_TITLE_LENGTH = 255;
     private static final int MAX_CATEGORY_LENGTH = 100;
+    private static final int MAX_FILE_METADATA_LENGTH = 255;
     private static final String ANONYMOUS_DISPLAY_NAME = "\uC775\uBA85_1";
     private static final String DELETED_USER_DISPLAY_NAME = "\uD0C8\uD1F4\uD55C \uC720\uC800";
 
@@ -209,7 +210,12 @@ public class PostService {
     private void saveFiles(Integer postId, List<MultipartFile> files) {
         List<PostFile> postFiles = files.stream()
                 .filter(file -> file != null && !file.isEmpty())
-                .map(file -> new PostFile(postId, postFileStorage.store(postId, file)))
+                .map(file -> new PostFile(
+                        postId,
+                        postFileStorage.store(postId, file),
+                        originalFileName(file),
+                        limitedText(file.getContentType())
+                ))
                 .toList();
 
         if (!postFiles.isEmpty()) {
@@ -297,11 +303,11 @@ public class PostService {
     }
 
     private void validateCreateRequest(PostCreateRequest request) {
-        validateRequiredText(request.title(), MAX_TITLE_LENGTH);
-        validateRequiredText(request.mainCategory(), MAX_CATEGORY_LENGTH);
-        validateRequiredText(request.subCategory(), MAX_CATEGORY_LENGTH);
+        validateRequiredText(request.title(), "title", MAX_TITLE_LENGTH);
+        validateRequiredText(request.mainCategory(), "main_category", MAX_CATEGORY_LENGTH);
+        validateRequiredText(request.subCategory(), "sub_category", MAX_CATEGORY_LENGTH);
         if (request.isAnonymous() == null) {
-            throw new ApiException(ErrorCode.VALIDATION_ERROR);
+            throw new ApiException(ErrorCode.VALIDATION_ERROR, "is_anonymous 값이 필요합니다.");
         }
     }
 
@@ -310,26 +316,48 @@ public class PostService {
             throw new ApiException(ErrorCode.VALIDATION_ERROR);
         }
         if (request.titleProvided()) {
-            validateRequiredText(request.title(), MAX_TITLE_LENGTH);
+            validateRequiredText(request.title(), "title", MAX_TITLE_LENGTH);
         }
         if (request.mainCategoryProvided()) {
-            validateRequiredText(request.mainCategory(), MAX_CATEGORY_LENGTH);
+            validateRequiredText(request.mainCategory(), "main_category", MAX_CATEGORY_LENGTH);
         }
         if (request.subCategoryProvided()) {
-            validateRequiredText(request.subCategory(), MAX_CATEGORY_LENGTH);
+            validateRequiredText(request.subCategory(), "sub_category", MAX_CATEGORY_LENGTH);
         }
         if (request.isAnonymousProvided() && request.isAnonymous() == null) {
-            throw new ApiException(ErrorCode.VALIDATION_ERROR);
+            throw new ApiException(ErrorCode.VALIDATION_ERROR, "is_anonymous 값은 true 또는 false여야 합니다.");
         }
     }
 
-    private void validateRequiredText(String value, int maxLength) {
-        if (!StringUtils.hasText(value) || value.length() > maxLength) {
-            throw new ApiException(ErrorCode.VALIDATION_ERROR);
+    private void validateRequiredText(String value, String fieldName, int maxLength) {
+        if (!StringUtils.hasText(value)) {
+            throw new ApiException(ErrorCode.VALIDATION_ERROR, fieldName + " 값이 필요합니다.");
+        }
+        if (value.length() > maxLength) {
+            throw new ApiException(ErrorCode.VALIDATION_ERROR, fieldName + " 값은 " + maxLength + "자 이하여야 합니다.");
         }
     }
 
     private String blankToNull(String value) {
         return StringUtils.hasText(value) ? value : null;
+    }
+
+    private String originalFileName(MultipartFile file) {
+        String originalFilename = file.getOriginalFilename();
+        if (!StringUtils.hasText(originalFilename)) {
+            return null;
+        }
+
+        String filename = StringUtils.getFilename(originalFilename.replace('\\', '/'));
+        return limitedText(filename);
+    }
+
+    private String limitedText(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return value.length() > MAX_FILE_METADATA_LENGTH
+                ? value.substring(0, MAX_FILE_METADATA_LENGTH)
+                : value;
     }
 }

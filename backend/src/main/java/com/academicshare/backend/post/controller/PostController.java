@@ -65,7 +65,7 @@ public class PostController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public PostResponse createPost(MultipartHttpServletRequest request) {
+    public PostResponse createPostByMultipart(MultipartHttpServletRequest request) {
         return postService.createPost(new PostCreateRequest(
                 parameter(request, "title"),
                 parameter(request, "content"),
@@ -73,6 +73,19 @@ public class PostController {
                 parameter(request, "sub_category"),
                 booleanParameter(request, "is_anonymous", true),
                 uploadedFiles(request)
+        ));
+    }
+
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    public PostResponse createPostByJson(@RequestBody JsonNode request) {
+        return postService.createPost(new PostCreateRequest(
+                textValue(request, "title"),
+                textValue(request, "content"),
+                textValue(request, "main_category"),
+                textValue(request, "sub_category"),
+                booleanValue(request, "is_anonymous"),
+                List.of()
         ));
     }
 
@@ -145,7 +158,7 @@ public class PostController {
     private Boolean booleanParameter(HttpServletRequest request, String name, boolean required) {
         if (!hasParameter(request, name)) {
             if (required) {
-                throw new ApiException(ErrorCode.VALIDATION_ERROR);
+                throw new ApiException(ErrorCode.VALIDATION_ERROR, name + " 값이 필요합니다.");
             }
             return null;
         }
@@ -157,7 +170,7 @@ public class PostController {
         if ("false".equalsIgnoreCase(value)) {
             return false;
         }
-        throw new ApiException(ErrorCode.VALIDATION_ERROR);
+        throw new ApiException(ErrorCode.VALIDATION_ERROR, name + " 값은 true 또는 false여야 합니다.");
     }
 
     private List<MultipartFile> uploadedFiles(MultipartHttpServletRequest request) {
