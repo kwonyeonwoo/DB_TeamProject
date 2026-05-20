@@ -9,6 +9,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.function.Supplier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
@@ -19,6 +20,7 @@ import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.csrf.DeferredCsrfToken;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 @Configuration
@@ -37,10 +39,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(csrfTokenRepository)
-                        .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
+                        .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
                         .ignoringRequestMatchers("/auth/signup", "/auth/login")
                 )
-                .addFilterAfter(new CsrfCookieFilter(csrfTokenRepository), CsrfFilter.class)
+                .addFilterAfter(new CsrfCookieFilter(), CsrfFilter.class)
                 .exceptionHandling(exceptionHandling -> exceptionHandling
                         .accessDeniedHandler((request, response, accessDeniedException) ->
                                 writeError(response, errorResponseFactory, objectMapper, ErrorCode.ACCESS_DENIED))
@@ -61,18 +63,20 @@ public class SecurityConfig {
 
     private static class CsrfCookieFilter extends OncePerRequestFilter {
 
-        private final CookieCsrfTokenRepository csrfTokenRepository;
-
-        private CsrfCookieFilter(CookieCsrfTokenRepository csrfTokenRepository) {
-            this.csrfTokenRepository = csrfTokenRepository;
-        }
-
         @Override
         protected void doFilterInternal(
                 HttpServletRequest request,
                 HttpServletResponse response,
                 FilterChain filterChain
         ) throws ServletException, IOException {
+            DeferredCsrfToken deferredCsrfToken =
+                    (DeferredCsrfToken) request.getAttribute(DeferredCsrfToken.class.getName());
+            if (deferredCsrfToken != null) {
+                deferredCsrfToken.get().getToken();
+                filterChain.doFilter(request, response);
+                return;
+            }
+
             CsrfToken csrfToken = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
             if (csrfToken == null) {
                 csrfToken = (CsrfToken) request.getAttribute("_csrf");
@@ -80,13 +84,21 @@ public class SecurityConfig {
             if (csrfToken != null) {
                 csrfToken.getToken();
             }
-            // Ensure SPA clients receive a readable cookie that they can echo as X-XSRF-TOKEN.
-            if (csrfTokenRepository.loadToken(request) == null) {
-                CsrfToken generatedToken = csrfTokenRepository.generateToken(request);
-                csrfTokenRepository.saveToken(generatedToken, request, response);
-            }
 
             filterChain.doFilter(request, response);
+        }
+    }
+
+    private static class SpaCsrfTokenRequestHandler extends CsrfTokenRequestAttributeHandler {
+
+        @Override
+        public void handle(
+                HttpServletRequest request,
+                HttpServletResponse response,
+                Supplier<CsrfToken> deferredCsrfToken
+        ) {
+            super.handle(request, response, deferredCsrfToken);
+            deferredCsrfToken.get().getToken();
         }
     }
 
