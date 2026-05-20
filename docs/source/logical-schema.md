@@ -63,10 +63,10 @@
     *   Note: `type` (1: 수업, 2: 과제, 3: 시험, 4: 스터디, 5: 기타)
 
 ### [9] 첨부파일(file)
-*   file (**id**, file_url)
+*   file (**id**, file_url, file_name, content_type)
     *   PK: (id, file_url)
     *   FK: 'id' → post(id)
-    *   Note: 실제 파일은 `/uploads/posts/{post_id}/{UUID}` 형식의 서버 로컬 경로에 저장하고 DB에는 `file_url`만 저장한다. 별도 파일 메타데이터는 저장하지 않는다.
+    *   Note: 실제 파일은 `/uploads/posts/{post_id}/{UUID[.extension]}` 형식의 서버 로컬 경로에 저장하고 DB에는 `file_url`, `file_name`, `content_type`을 저장한다.
 
 ### [10] 알림(notification)
 *   notification(**id**, is_read, comment_content, commented_post_id, commented_user_id, commented_id, created_at)

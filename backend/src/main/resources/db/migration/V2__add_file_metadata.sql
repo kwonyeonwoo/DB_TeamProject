@@ -1,0 +1,5 @@
+ALTER TABLE file
+    ADD COLUMN file_name VARCHAR(255) NULL;
+
+ALTER TABLE file
+    ADD COLUMN content_type VARCHAR(255) NULL;

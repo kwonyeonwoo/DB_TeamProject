@@ -9,6 +9,10 @@ spring:
   jackson:
     default-property-inclusion: non_null
     property-naming-strategy: SNAKE_CASE
+  servlet:
+    multipart:
+      max-file-size: ${APP_UPLOAD_MAX_FILE_SIZE:-1}
+      max-request-size: ${APP_UPLOAD_MAX_REQUEST_SIZE:-1}
   jpa:
     open-in-view: false
     hibernate:

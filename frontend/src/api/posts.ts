@@ -278,11 +278,9 @@ export const postsApi = {
       return nextPost
     }
 
-    const response = await apiClient.post<Post>('/posts', buildPostFormData(request), {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    })
+    const hasFiles = Boolean(request.files?.length)
+    const body = hasFiles ? buildPostFormData(request) : request
+    const response = await apiClient.post<Post>('/posts', body)
     return response.data
   },
 
@@ -313,13 +311,7 @@ export const postsApi = {
 
     const hasFiles = Boolean(request.files?.length)
     const body = hasFiles ? buildPostFormData(request) : request
-    const response = await apiClient.patch<Post>(`/posts/${postId}`, body, {
-      headers: hasFiles
-        ? {
-            'Content-Type': 'multipart/form-data',
-          }
-        : undefined,
-    })
+    const response = await apiClient.patch<Post>(`/posts/${postId}`, body)
     return response.data
   },
 

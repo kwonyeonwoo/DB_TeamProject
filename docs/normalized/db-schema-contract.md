@@ -222,6 +222,8 @@ Indexes:
 |---|---|---:|---|---|---|
 | `id` | INTEGER | no | PK, FK -> `post.id` | - | 첨부파일이 속한 게시글 |
 | `file_url` | VARCHAR(1024) | no | PK | - | 업로드된 첨부파일 저장 위치 |
+| `file_name` | VARCHAR(255) | yes | - | NULL | 업로드 당시 원본 파일명 |
+| `content_type` | VARCHAR(255) | yes | - | NULL | 업로드 당시 MIME 타입 |
 
 Foreign keys:
 
@@ -234,8 +236,8 @@ Indexes:
 
 Notes:
 
-- 실제 파일은 서버 로컬 `/uploads/posts/{post_id}/{UUID}` 경로에 저장한다.
-- DB에는 `file_url`만 저장하고 별도 파일 메타데이터는 저장하지 않는다.
+- 실제 파일은 서버 로컬 `/uploads/posts/{post_id}/{UUID[.extension]}` 경로에 저장한다.
+- DB에는 `file_url`, `file_name`, `content_type`을 저장한다.
 
 ### notification
 

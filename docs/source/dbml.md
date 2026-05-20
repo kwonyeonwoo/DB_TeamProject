@@ -173,7 +173,9 @@ Table schedules {
 // [9] 첨부파일(file)
 Table file {
   id int [not null, ref: > post.id, note: '첨부파일이 속한 게시글']
-  file_url varchar [not null, note: '업로드된 첨부파일의 저장 위치. 실제 파일은 /uploads/posts/{post_id}/{UUID} 형식으로 저장하며 별도 파일 메타데이터는 저장하지 않음']
+  file_url varchar [not null, note: '업로드된 첨부파일의 저장 위치. 실제 파일은 /uploads/posts/{post_id}/{UUID[.extension]} 형식으로 저장']
+  file_name varchar [note: '업로드 당시 원본 파일명']
+  content_type varchar [note: '업로드 당시 MIME 타입']
 
   indexes {
     (id, file_url) [pk]

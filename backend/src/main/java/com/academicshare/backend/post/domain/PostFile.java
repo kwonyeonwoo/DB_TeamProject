@@ -24,12 +24,26 @@ public class PostFile {
     @Column(name = "file_url", nullable = false, length = 1024)
     private String fileUrl;
 
+    @Size(max = 255)
+    @Column(name = "file_name", length = 255)
+    private String fileName;
+
+    @Size(max = 255)
+    @Column(name = "content_type", length = 255)
+    private String contentType;
+
     protected PostFile() {
     }
 
     public PostFile(Integer id, String fileUrl) {
+        this(id, fileUrl, null, null);
+    }
+
+    public PostFile(Integer id, String fileUrl, String fileName, String contentType) {
         this.id = id;
         this.fileUrl = fileUrl;
+        this.fileName = fileName;
+        this.contentType = contentType;
     }
 
     public Integer getId() {
@@ -38,5 +52,13 @@ public class PostFile {
 
     public String getFileUrl() {
         return fileUrl;
+    }
+
+    public String getFileName() {
+        return fileName;
+    }
+
+    public String getContentType() {
+        return contentType;
     }
 }
