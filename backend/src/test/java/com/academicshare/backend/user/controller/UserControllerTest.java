@@ -37,6 +37,7 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -82,11 +83,14 @@ class UserControllerTest {
     private EntityManager entityManager;
 
     @Test
+    @DirtiesContext(methodMode = DirtiesContext.MethodMode.BEFORE_METHOD)
     void getMeReturnsCurrentUserAndRequiresAuthentication() throws Exception {
         User user = saveUser("user-get-me", "Get Me", "user-get-me@example.com", "password123");
+        MockHttpSession session = new MockHttpSession();
+        session.setAttribute(AuthSessionAttributes.CURRENT_USER_ID, user.getId());
 
         MvcResult result = mockMvc.perform(get("/users/me")
-                        .sessionAttr(AuthSessionAttributes.CURRENT_USER_ID, user.getId()))
+                        .session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(user.getId()))
                 .andExpect(jsonPath("$.login_id").value("user-get-me"))

@@ -154,6 +154,9 @@ class AuthControllerTest {
         assertThat(csrfCookie).isNotNull();
         assertThat(csrfCookie.isHttpOnly()).isFalse();
         assertThat(csrfCookie.getPath()).isEqualTo("/");
+        assertThat(result.getResponse().getHeaders("Set-Cookie"))
+                .filteredOn(header -> header.startsWith("XSRF-TOKEN="))
+                .hasSize(1);
     }
 
     @Test
