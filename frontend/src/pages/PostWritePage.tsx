@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getErrorMessage } from '../api/errors'
 import { postsApi } from '../api/posts'
-import type { Post } from '../api/posts'
+import type { Post, PostFile } from '../api/posts'
 
 const categoryOptions = [
   {
@@ -42,6 +42,30 @@ function isImageFileUrl(fileUrl: string) {
   return /\.(apng|avif|gif|jpe?g|png|svg|webp)$/i.test(fileUrl.split('?')[0] ?? '')
 }
 
+function getPostFileUrl(file: PostFile) {
+  if (file.preview_url) {
+    return file.preview_url
+  }
+
+  if (/^(https?:|data:|blob:)/i.test(file.file_url)) {
+    return file.file_url
+  }
+
+  if (file.file_url.startsWith('/api/uploads/')) {
+    return file.file_url
+  }
+
+  if (file.file_url.startsWith('/uploads/')) {
+    return `/api${file.file_url}`
+  }
+
+  return file.file_url
+}
+
+function getPostFileName(file: PostFile) {
+  return file.file_name ?? file.file_url.split('/').at(-1) ?? '첨부 이미지'
+}
+
 export function PostWritePage() {
   const navigate = useNavigate()
   const { postId } = useParams()
@@ -66,15 +90,120 @@ export function PostWritePage() {
   const fallbackSubCategoryOptions = subCategoryOptions.length
     ? subCategoryOptions
     : allSubjectOptions
-  const selectedImageFiles = files.filter(isImageFile)
-  const existingImageFiles =
-    editingPost?.files
-      .map((file, index) => ({ file, index }))
-      .filter(
+  const selectedImageFiles = useMemo(() => files.filter(isImageFile), [files])
+  const selectedImagePreviews = useMemo(
+    () =>
+      selectedImageFiles.map((file) => ({
+        file,
+        url: URL.createObjectURL(file),
+      })),
+    [selectedImageFiles],
+  )
+  const existingImageFiles = useMemo(
+    () =>
+      editingPost?.files
+        .map((file, index) => ({ file, index }))
+        .filter(
+          ({ file }) =>
+            file.content_type?.startsWith('image/') ||
+            isImageFileUrl(file.file_name ?? file.file_url),
+        ) ?? [],
+    [editingPost?.files],
+  )
+  const contentPreviewNodes = useMemo(() => {
+    const imageTokenPattern = /\[[^\]:]+:(.+?)\]/g
+    const nodes: ReactNode[] = []
+    let lastIndex = 0
+    let match: RegExpExecArray | null
+
+    const resolvePreviewImage = (marker: string) => {
+      const normalizedMarker = marker.trim()
+      const imageIndex = Number(normalizedMarker)
+
+      if (Number.isInteger(imageIndex) && imageIndex > 0) {
+        const selectedPreview = selectedImagePreviews.find(
+          ({ file }) => files.indexOf(file) + 1 === imageIndex,
+        )
+
+        if (selectedPreview) {
+          return {
+            name: selectedPreview.file.name,
+            url: selectedPreview.url,
+          }
+        }
+
+        const existingImage = existingImageFiles.find(
+          ({ index }) => index + 1 === imageIndex,
+        )
+
+        if (existingImage) {
+          return {
+            name: getPostFileName(existingImage.file),
+            url: getPostFileUrl(existingImage.file),
+          }
+        }
+      }
+
+      const selectedPreview = selectedImagePreviews.find(
+        ({ file }) => file.name === normalizedMarker,
+      )
+
+      if (selectedPreview) {
+        return {
+          name: selectedPreview.file.name,
+          url: selectedPreview.url,
+        }
+      }
+
+      const existingImage = existingImageFiles.find(
         ({ file }) =>
-          file.content_type?.startsWith('image/') ||
-          isImageFileUrl(file.file_name ?? file.file_url),
-      ) ?? []
+          getPostFileName(file) === normalizedMarker ||
+          file.file_url.endsWith(normalizedMarker),
+      )
+
+      return existingImage
+        ? {
+            name: getPostFileName(existingImage.file),
+            url: getPostFileUrl(existingImage.file),
+          }
+        : null
+    }
+
+    while ((match = imageTokenPattern.exec(content)) !== null) {
+      const text = content.slice(lastIndex, match.index)
+
+      if (text.trim()) {
+        nodes.push(<p key={`text-${match.index}`}>{text}</p>)
+      }
+
+      const image = resolvePreviewImage(match[1])
+
+      if (image) {
+        nodes.push(
+          <figure className="post-inline-image" key={`image-${match.index}`}>
+            <img src={image.url} alt={image.name} />
+            <figcaption>{image.name}</figcaption>
+          </figure>,
+        )
+      } else {
+        nodes.push(
+          <p className="muted" key={`missing-image-${match.index}`}>
+            선택한 이미지를 찾을 수 없습니다.
+          </p>,
+        )
+      }
+
+      lastIndex = match.index + match[0].length
+    }
+
+    const remainingText = content.slice(lastIndex)
+
+    if (remainingText.trim()) {
+      nodes.push(<p key="text-last">{remainingText}</p>)
+    }
+
+    return nodes
+  }, [content, existingImageFiles, files, selectedImagePreviews])
 
   useEffect(() => {
     let isMounted = true
@@ -112,6 +241,13 @@ export function PostWritePage() {
       isMounted = false
     }
   }, [isEditMode, numericPostId])
+
+  useEffect(
+    () => () => {
+      selectedImagePreviews.forEach((preview) => URL.revokeObjectURL(preview.url))
+    },
+    [selectedImagePreviews],
+  )
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -243,21 +379,28 @@ export function PostWritePage() {
               onChange={(event) => setContent(event.target.value)}
             />
           </label>
+          {contentPreviewNodes.length > 0 && (
+            <details className="post-content-preview">
+              <summary>본문 미리보기</summary>
+              <div className="detail-body">{contentPreviewNodes}</div>
+            </details>
+          )}
           {(selectedImageFiles.length > 0 || existingImageFiles.length > 0) && (
             <div className="image-placement-panel">
               <strong>본문 이미지 위치</strong>
               <p>커서를 원하는 위치에 둔 뒤 이미지를 선택하면 게시글 본문에 표시됩니다.</p>
               <div className="image-placement-list">
-                {selectedImageFiles.map((file) => {
+                {selectedImagePreviews.map(({ file, url }) => {
                   const fileIndex = files.indexOf(file) + 1
                   return (
                     <button
-                      className="text-button"
+                      className="image-placement-preview"
                       type="button"
                       key={`${file.name}-${file.lastModified}`}
                       onClick={() => insertImageMarker(String(fileIndex))}
                     >
-                      {file.name}
+                      <img src={url} alt={file.name} />
+                      <span>{file.name}</span>
                     </button>
                   )
                 })}
