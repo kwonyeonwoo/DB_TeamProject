@@ -59,6 +59,7 @@ interface LikeResponse {
 }
 
 const mockPostKey = 'db-teamproject:mock-posts'
+const pendingPostRequests = new Map<number, Promise<Post>>()
 
 const seedPosts: Post[] = [
   {
@@ -248,8 +249,21 @@ export const postsApi = {
       return nextPost
     }
 
-    const response = await apiClient.get<Post>(`/posts/${postId}`)
-    return response.data
+    const pendingPostRequest = pendingPostRequests.get(postId)
+
+    if (pendingPostRequest) {
+      return pendingPostRequest
+    }
+
+    const postRequest = apiClient
+      .get<Post>(`/posts/${postId}`)
+      .then((response) => response.data)
+      .finally(() => {
+        pendingPostRequests.delete(postId)
+      })
+
+    pendingPostRequests.set(postId, postRequest)
+    return postRequest
   },
 
   async createPost(request: SavePostRequest) {

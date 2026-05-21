@@ -36,13 +36,35 @@ function getAttachmentUrl(file: PostFile) {
   return file.file_url
 }
 
+function getAttachmentDownloadUrl(file: PostFile) {
+  const match = file.file_url.match(/^\/uploads\/posts\/(\d+)\/(.+)$/)
+
+  if (!match) {
+    return getAttachmentUrl(file)
+  }
+
+  const [, postId, fileName] = match
+  return `/api/posts/${postId}/files/${encodeURIComponent(fileName)}`
+}
+
+function getStoredFileName(file: PostFile) {
+  return file.file_url.split('/').at(-1) ?? ''
+}
+
+function isHashLikeName(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?:\.[a-z0-9._-]+)?$/i.test(
+    value,
+  )
+}
+
 function getAttachmentName(file: PostFile) {
-  const rawFallbackName = file.file_url.split('/').at(-1) ?? '첨부 파일'
+  const rawFallbackName = getStoredFileName(file)
 
   try {
-    return file.file_name ?? decodeURIComponent(rawFallbackName)
+    const fallbackName = decodeURIComponent(rawFallbackName)
+    return file.file_name ?? (isHashLikeName(fallbackName) ? `첨부파일 ${file.id}` : fallbackName)
   } catch {
-    return file.file_name ?? rawFallbackName
+    return file.file_name ?? (isHashLikeName(rawFallbackName) ? `첨부파일 ${file.id}` : rawFallbackName)
   }
 }
 
@@ -219,12 +241,20 @@ export function PostDetailPage() {
     try {
       if (post.liked_by_me) {
         await postsApi.unlikePost(post.id)
+        setPost({
+          ...post,
+          liked_by_me: false,
+          like_count: Math.max(0, post.like_count - 1),
+        })
       } else {
         await postsApi.likePost(post.id)
+        setPost({
+          ...post,
+          liked_by_me: true,
+          like_count: post.like_count + 1,
+        })
       }
 
-      const nextPost = await postsApi.getPost(post.id)
-      setPost(nextPost)
       setErrorMessage(null)
     } catch (error) {
       setErrorMessage(getErrorMessage(error))
@@ -427,7 +457,11 @@ export function PostDetailPage() {
                 <ul>
                   {post.files.map((file) => (
                     <li key={file.file_url}>
-                      <a href={getAttachmentUrl(file)} target="_blank" rel="noreferrer">
+                      <a
+                        className="attachment-download-button"
+                        href={getAttachmentDownloadUrl(file)}
+                        download={getAttachmentName(file)}
+                      >
                         {getAttachmentName(file)}
                       </a>
                     </li>
