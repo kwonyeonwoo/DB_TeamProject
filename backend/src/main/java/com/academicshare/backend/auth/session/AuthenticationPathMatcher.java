@@ -11,6 +11,7 @@ public class AuthenticationPathMatcher {
 
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
     private final List<PublicRoute> publicRoutes = List.of(
+            new PublicRoute(HttpMethod.GET, "/health"),
             new PublicRoute(HttpMethod.POST, "/auth/signup"),
             new PublicRoute(HttpMethod.POST, "/auth/login")
     );
