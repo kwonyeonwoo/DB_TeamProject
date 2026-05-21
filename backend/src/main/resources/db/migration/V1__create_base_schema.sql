@@ -115,7 +115,7 @@ CREATE TABLE schedules (
 
 CREATE TABLE file (
     id INT NOT NULL,
-    file_url VARCHAR(1024) NOT NULL,
+    file_url VARCHAR(255) NOT NULL,
     PRIMARY KEY (id, file_url),
     CONSTRAINT fk_file_id FOREIGN KEY (id) REFERENCES post (id) ON DELETE CASCADE ON UPDATE CASCADE
 );
