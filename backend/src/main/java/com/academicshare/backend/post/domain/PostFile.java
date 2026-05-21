@@ -20,8 +20,8 @@ public class PostFile {
 
     @Id
     @NotNull
-    @Size(max = 1024)
-    @Column(name = "file_url", nullable = false, length = 1024)
+    @Size(max = 255)
+    @Column(name = "file_url", nullable = false, length = 255)
     private String fileUrl;
 
     @Size(max = 255)
