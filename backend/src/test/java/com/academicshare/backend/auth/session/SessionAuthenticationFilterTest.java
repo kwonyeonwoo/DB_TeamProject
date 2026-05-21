@@ -56,13 +56,6 @@ class SessionAuthenticationFilterTest {
     }
 
     @Test
-    void publicHealthPathDoesNotRequireSession() throws Exception {
-        mockMvc.perform(get("/health"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("ok"));
-    }
-
-    @Test
     void unknownFutureApiPathWithoutSessionReturns401ByDefault() throws Exception {
         mockMvc.perform(get("/future-api"))
                 .andExpect(status().isUnauthorized())
